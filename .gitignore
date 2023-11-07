@@ -131,3 +131,4 @@ dmypy.json
 
 DepthNetworks/*_outputs/
 **/.DS_Store
+*_outputs/
