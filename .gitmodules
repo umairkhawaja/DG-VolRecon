@@ -1,0 +1,6 @@
+[submodule "DepthNetworks/cascade-stereo"]
+	path = DepthNetworks/cascade-stereo
+	url = https://github.com/alibaba/cascade-stereo.git
+[submodule "DepthNetworks/MVSNet_pytorch"]
+	path = DepthNetworks/MVSNet_pytorch
+	url = https://github.com/xy-guo/MVSNet_pytorch.git

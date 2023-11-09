@@ -131,3 +131,4 @@ dmypy.json
 
 *_outputs/
 checkpoints/
+DepthNetworks/*_outputs/
