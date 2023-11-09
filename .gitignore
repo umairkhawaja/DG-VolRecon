@@ -129,6 +129,6 @@ dmypy.json
 .pyre/
 
 
-DepthNetworks/*_outputs/
-**/.DS_Store
 *_outputs/
+checkpoints/
+DepthNetworks/*_outputs/
