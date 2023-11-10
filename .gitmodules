@@ -4,3 +4,6 @@
 [submodule "DepthNetworks/MVSNet_pytorch"]
 	path = DepthNetworks/MVSNet_pytorch
 	url = https://github.com/xy-guo/MVSNet_pytorch.git
+[submodule "DepthNetworks/MVSNet"]
+	path = DepthNetworks/MVSNet
+	url = git@github.com:YoYo000/MVSNet.git
