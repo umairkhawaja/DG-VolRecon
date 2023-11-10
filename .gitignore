@@ -132,3 +132,5 @@ dmypy.json
 *_outputs/
 checkpoints/
 DepthNetworks/*_outputs/
+DepthNetworks/scan9/
+*/**/*.pyc
