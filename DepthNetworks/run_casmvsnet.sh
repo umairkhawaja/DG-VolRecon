@@ -13,7 +13,7 @@ ls -l "$ROOT_DIR/Rectified/"
 
 
 TESTPATH="$ROOT_DIR/Rectified/"
-WORKSPACE_PATH="$TESTPATH/casmvsnet_output"
+WORKSPACE_PATH="$ROOT_DIR/casmvsnet_output"
 
 # Run CasMVSNet for the current scan using the selected images
 python test.py \
@@ -24,5 +24,6 @@ python test.py \
     --interval_scale 1.06 \
     --outdir "$WORKSPACE_PATH" \
     --loadckpt "$CHECKPOINT_PATH"
+
 
 echo "CasMVSNet predictions saved for selected images in all scans."

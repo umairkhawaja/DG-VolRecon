@@ -1,24 +1,24 @@
 #!/bin/bash
 
 # Path to the root directory of the DTU dataset
-ROOT_DIR="/dataset/mvs_training/dtu/"
+ROOT_DIR="/dataset/DTU_TEST/"
 
 # Verify the directory structure
-echo "Checking directories in $ROOT_DIR/Rectified/"
-ls -l "$ROOT_DIR/Rectified/"
+echo "Checking directories in $ROOT_DIR/"
+ls -l "$ROOT_DIR/"
 
 # Path to the COLMAP executable
 COLMAP="/usr/local/bin/colmap"
 
 # Iterate over all folders inside the Rectified directory
-for SCAN_DIR in $ROOT_DIR/Rectified/*/; do
+for SCAN_DIR in $ROOT_DIR*/; do
     # Skip the dense directory if it exists within the Rectified directory
     if [ -d "$SCAN_DIR/colmap_output/dense/" ]; then
-        continue
+        # continue
 
         ## TO UNDO OUTPUTS
-        # echo "Removing $SCAN_DIR/colmap_output/"
-        # rm -r "$SCAN_DIR/colmap_output/"
+        echo "Removing $SCAN_DIR/colmap_output/"
+        rm -r "$SCAN_DIR/colmap_output/"
     fi
 
     # Check if the variable is indeed a directory
@@ -36,7 +36,7 @@ for SCAN_DIR in $ROOT_DIR/Rectified/*/; do
             --image_path "$SCAN_DIR/images/" \
 
     else
-        echo "No directories found in $ROOT_DIR/Rectified/"
+        echo "No directories found in $ROOT_DIR/"
         exit 1
     fi
 done

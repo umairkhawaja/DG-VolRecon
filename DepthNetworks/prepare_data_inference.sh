@@ -39,13 +39,13 @@ for SCAN_DIR in $ROOT_DIR/Rectified/*/; do
         cp "$ROOT_DIR/Cameras/train/"* "$CAMS_DIR"
 
         # Select the first image of each pose (assumes ordered filenames)
-        for i in $(seq 1 49); do  # Use seq as a compatible alternative to brace expansion
+        for i in $(seq 0 49); do  # Use seq as a compatible alternative to brace expansion
             # Construct the file pattern to match the first image of each pose
             FILE_PATTERN=$(printf "rect_%03d_0_r5000.png" "$i")
             
             # Construct the new filename with leading zeros and a .jpg extension
             j=$((i-1))
-            NEW_FILENAME=$(printf "%08d.jpg" "$j")
+            NEW_FILENAME=$(printf "%08d.jpg" "$i")
             
             # Check if the file exists before attempting to copy and convert it
             if [ -f "$SCAN_DIR/$FILE_PATTERN" ]; then
