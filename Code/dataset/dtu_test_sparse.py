@@ -1,9 +1,12 @@
 import torch
 import cv2 as cv
 import numpy as np
+from torchvision.utils import save_image
 import os
+from PIL import Image
 import logging
 from einops import repeat
+from Code.dataset.dtu_train import read_pfm
 
 from .scene_transform import get_boundingbox
 
@@ -72,18 +75,24 @@ class DtuFitSparse:
 
         self.world_mats_np = []
         self.images_list = []
+        self.depths_list = []
         for vid in self.idx:
             proj_mat_filename = os.path.join(self.root_dir, 'cameras/{:0>8}_cam.txt'.format(vid))
             P = self.read_cam_file(proj_mat_filename)
             self.world_mats_np.append(P)
             img_filename = os.path.join(self.data_dir, 'image/{:0>6}.png'.format(vid))
+            
+            depth_filename = os.path.join(self.data_dir,f'mvsnet_output/{vid:08d}_init.pfm')
+            assert os.path.exists(depth_filename), f"File not found: {depth_filename}"
             self.images_list.append(img_filename)
+            self.depths_list.append(depth_filename)
 
         self.raw_near_fars = np.stack([np.array([self.near, self.far]) for i in range(len(self.images_list))])
         ref_world_mat = self.world_mats_np[0]
         self.ref_w2c = np.linalg.inv(load_K_Rt_from_P(None, ref_world_mat[:3, :4])[1])
 
         self.all_images = []
+        self.all_depths = []
         self.all_intrinsics = []
         self.all_w2cs = []
         self.all_w2cs_original = []
@@ -138,6 +147,12 @@ class DtuFitSparse:
 
         return P
 
+    def read_depth_prior(self, filename):
+        depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (128, 160)
+        depth_h = cv.resize(depth_h, (800, 600),
+                             interpolation=cv.INTER_NEAREST)  # (600, 800)
+        # depth_h = depth_h[44:556, 80:720]  # (512, 640)
+        return depth_h
 
     def load_scene(self):
 
@@ -151,6 +166,10 @@ class DtuFitSparse:
             image = image[self.clip_wh[1]:self.img_wh[1] - self.clip_wh[3],
                     self.clip_wh[0]:self.img_wh[0] - self.clip_wh[2]]
             self.all_images.append(np.transpose(image[:, :, ::-1], (2, 0, 1)))
+
+            # load depth maps
+            depth_h = self.read_depth_prior(self.depths_list[idx])
+            self.all_depths.append(depth_h)
 
             P = self.world_mats_np[idx]
             P = P[:3, :4]
@@ -286,6 +305,29 @@ class DtuFitSparse:
         cam_ray_d = cam_ray_d / torch.norm(cam_ray_d, dim=0)
         sample['cam_ray_d'] = cam_ray_d.float()
 
-        sample['meta'] = "%s-%s-%08d"%(self.root_dir.split("/")[-1], self.scan_id, render_idx)
+        self.depths = []
+        for depth in self.all_depths:
+            depth = depth * self.scale_factor
+            self.depths.append(depth)
+        self.all_depths = torch.from_numpy(np.stack(self.depths)).to(torch.float32)
+        V,H,W = self.all_depths.size() 
+        all_depths = self.all_depths      
+        all_depths = all_depths.view(V,-1)
+        all_depths = all_depths/sample['cam_ray_d'][2:3,:]
+        sample['depths_h'] = all_depths.view(V,H,W)
+        self.save_img_depth(sample=sample)
 
+        sample['meta'] = "%s-%s-%08d"%(self.root_dir.split("/")[-1], self.scan_id, render_idx)
         return sample
+    
+    def save_img_depth(self, sample):
+        for i in range(sample['depths_h'].shape[0]):
+            depth = sample['depths_h'][i,:,:].cpu().numpy()
+            depth_save = ((depth / np.max(depth)).astype(np.float32) * 255).astype(np.uint8)
+            Image.fromarray(depth_save).save(os.path.join('temp_output/test', "%d_depth.png"%i))
+        for i in range(sample['ref_img'].shape[0]):
+            save_image(sample['ref_img'][i], './temp_output/test/ref_image.png')
+        for i in range(sample['source_imgs'].shape[0]):
+            save_image(sample['source_imgs'][i], './temp_output/test/source_image_%d.png'%i)
+
+        
