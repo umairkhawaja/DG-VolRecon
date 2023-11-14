@@ -1,6 +1,7 @@
 # Adapted from SparseNeuS
 
 from torch.utils.data import Dataset
+from torchvision.utils import save_image
 import os, re
 import numpy as np
 import cv2
@@ -217,6 +218,12 @@ class MVSDataset(Dataset):
                              interpolation=cv2.INTER_NEAREST)  # (600, 800)
         depth_h = depth_h[44:556, 80:720]  # (512, 640)
         return depth_h
+    def read_depth_prior(self, filename):
+        depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (128, 160)
+        depth_h = cv2.resize(depth_h, (800, 600),
+                             interpolation=cv2.INTER_NEAREST)  # (600, 800)
+        depth_h = depth_h[44:556, 80:720]  # (512, 640)
+        return depth_h
 
 
     def cal_scale_mat(self, img_hw, intrinsics, extrinsics, near_fars, factor=1.):
@@ -229,6 +236,19 @@ class MVSDataset(Dataset):
 
         return scale_mat, 1. / radius.cpu().numpy()
 
+    def save_depth(self, sample):
+        """
+        depth: supervision, (V, 512, 640)
+        depth_prior: prior, (V, 512, 640)
+        """
+        for i in range(sample['depths_h'].shape[0]):
+            depth = sample['depths_h'][i,:,:].cpu().numpy()
+            depth_save = ((depth / np.max(depth)).astype(np.float32) * 255).astype(np.uint8)
+            Image.fromarray(depth_save).save(os.path.join('temp_output/depth', "%d_depth.png"%i))
+        for i in range(sample['depths_prior_h'].shape[0]):
+            depth_prior = sample['depths_prior_h'][i,:,:].cpu().numpy()
+            depth_save = ((depth_prior / np.max(depth_prior)).astype(np.float32) * 255).astype(np.uint8)
+            Image.fromarray(depth_save).save(os.path.join('temp_output/depth', "%d_prior.png"%i))
 
     def __len__(self):
         return len(self.metas)
@@ -237,12 +257,11 @@ class MVSDataset(Dataset):
     def __getitem__(self, idx):
         sample = {}
         scan, light_idx, ref_view, src_views = self.metas[idx % len(self.metas)]
-
         view_ids = [ref_view] + src_views[:self.n_views-1]
         w2c_ref = self.all_extrinsics[self.remap[ref_view]]
         w2c_ref_inv = np.linalg.inv(w2c_ref)
 
-        imgs, depths_h = [], []
+        imgs, depths_h, depths_h_prior = [], [], []
         intrinsics, w2cs, near_fars = [], [], []  # record proj mats between views
 
         for i, vid in enumerate(view_ids):
@@ -251,6 +270,13 @@ class MVSDataset(Dataset):
                                         f'Rectified/{scan}_train/rect_{vid + 1:03d}_{light_idx}_r5000.png')
             depth_filename = os.path.join(self.root_dir,
                                           f'Depths_raw/{scan}/depth_map_{vid:04d}.pfm')
+            depth_prior_filename = os.path.join(self.root_dir,
+                                          f'MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm')
+            depth_prior_test_filename = os.path.join('/home/dataset/DTU_TEST',
+                                          f'{scan}/mvsnet_output/{vid:08d}_init.pfm')
+            depth_prior_filename = depth_prior_filename if os.path.exists(depth_prior_filename) else depth_prior_test_filename
+            assert os.path.exists(depth_prior_filename), f"File not found: {depth_prior_filename}"
+
             
             img = Image.open(img_filename)
             img = self.transform(img)
@@ -262,9 +288,16 @@ class MVSDataset(Dataset):
 
             w2cs.append(self.all_extrinsics[index_mat] @ w2c_ref_inv)
 
-            if os.path.exists(depth_filename):  # and i == 0
+            if os.path.exists(depth_filename):  
+                # if i == 0:
+                #     print(depth_filename)# and i == 0
                 depth_h = self.read_depth(depth_filename)
                 depths_h.append(depth_h)
+            if os.path.exists(depth_prior_filename):  # and i == 0
+                # if i == 0:
+                #     print(depth_prior_filename)
+                depth_h_prior = self.read_depth_prior(depth_prior_filename)
+                depths_h_prior.append(depth_h_prior)
 
         scale_mat, scale_factor = self.cal_scale_mat(img_hw=[self.img_wh[1], self.img_wh[0]],
                                                      intrinsics=intrinsics, extrinsics=w2cs,
@@ -273,7 +306,8 @@ class MVSDataset(Dataset):
         new_w2cs = []
         new_c2ws = []
         new_depths_h = []
-        for intrinsic, extrinsic, depth in zip(intrinsics, w2cs, depths_h):
+        new_depths_prior_h = []
+        for intrinsic, extrinsic, depth, depth_prior in zip(intrinsics, w2cs, depths_h, depths_h_prior):
 
             P = intrinsic @ extrinsic @ scale_mat
             P = P[:3, :4]
@@ -289,9 +323,11 @@ class MVSDataset(Dataset):
             far = dist + 1
             new_near_fars.append([0.95 * near, 1.05 * far])
             new_depths_h.append(depth * scale_factor)
+            new_depths_prior_h.append(depth_prior * scale_factor)
 
         imgs = torch.stack(imgs).float()
         depths_h = np.stack(new_depths_h)
+        depths_prior_h = np.stack(new_depths_prior_h)
 
         intrinsics, w2cs, c2ws, near_fars = np.stack(intrinsics), np.stack(new_w2cs), np.stack(new_c2ws), np.stack(new_near_fars)
 
@@ -335,11 +371,26 @@ class MVSDataset(Dataset):
         cam_ray_d = (torch.inverse(normalize_matrix @ intrinsics_pad[0]) @ self.homo_pixel)[:3]
         cam_ray_d = cam_ray_d / torch.linalg.norm(cam_ray_d, dim=0, keepdim=True)
         sample['cam_ray_d'] = cam_ray_d
-
+        
+        # sample['depths_h'] = depths_h
+        # depths_prior_h = torch.from_numpy(depths_prior_h.astype(np.float32))[start_idx:]
+        # sample['depths_prior_h'] = depths_prior_h
+        # self.save_depth(sample=sample)
+        save_image(sample['ref_img'], './temp_output/tensor_image.png')
         depths_h = torch.from_numpy(depths_h.astype(np.float32))[start_idx:]
         V,H,W = depths_h.size()       
         depths_h = depths_h.view(V,-1)
         depths_h = depths_h/cam_ray_d[2:3,:]
         sample['depths_h'] = depths_h.view(V,H,W)
+
+        depths_prior_h = torch.from_numpy(depths_prior_h.astype(np.float32))[start_idx:]
+        V,H,W = depths_prior_h.size()    
+        depths_prior_h = depths_prior_h.view(V,-1)
+        depths_prior_h = depths_prior_h/cam_ray_d[2:3,:]
+        sample['depths_prior_h'] = depths_prior_h.view(V,H,W)
+        # print(scan)
+        # print(ref_view)
+        # self.save_depth(sample=sample)
+        
      
         return sample
