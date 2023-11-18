@@ -66,11 +66,23 @@ class FeatureVolume(nn.Module):
         # projection: project all x * y * z points to NV images and sample features
 
         # grid sample 2D 
+        # prior depth map: (B, NV, H, W)
+        depth_prior = batch['depths_prior_h'].unsqueeze(2) #(B, NV, 1, H, W)
+        pixel_depth, _ = grid_sample_2d(rearrange(depth_prior, "B NV C H W -> (B NV) C H W"), volume_xyz_pixel.double()) # (B NV) C XYZ 1, (B NV XYZ 1)
+        pixel_depth = pixel_depth.squeeze(1).squeeze(-1)
+        projected_depth = volume_xyz_pixel_homo[:,:,2] #(B, NV, XYZ)
+        unit_depth = (projected_depth[:, :, -1] - projected_depth[:, :, 0])/(self.volume_reso-1)
+        unit_depth = unit_depth.unsqueeze(-1).repeat(1, 1, projected_depth.shape[-1])
+        # print('unit_depth', unit_depth.shape)
+        depth_difference = pixel_depth - projected_depth
+        delta_mask = torch.abs(depth_difference) < 4*unit_depth
+        delta_mask = rearrange(delta_mask, "B NV XYZ -> (B NV) XYZ")
+        
         volume_feature, mask = grid_sample_2d(rearrange(feats, "B NV C H W -> (B NV) C H W"), volume_xyz_pixel) # (B NV) C XYZ 1, (B NV XYZ 1)
         
         volume_feature = volume_feature.squeeze(-1)
         mask = mask.squeeze(-1)  # (B NV XYZ)
-        mask = mask * mask_valid_depth
+        mask = mask * mask_valid_depth * delta_mask
 
         volume_feature = rearrange(volume_feature, "(B NV) C (NumX NumY NumZ) -> B NV NumX NumY NumZ C", B=B, NV=NV, NumX=self.volume_reso, NumY=self.volume_reso, NumZ=self.volume_reso)
         mask = rearrange(mask, "(B NV) (NumX NumY NumZ) -> B NV NumX NumY NumZ", B=B, NV=NV, NumX=self.volume_reso, NumY=self.volume_reso, NumZ=self.volume_reso)

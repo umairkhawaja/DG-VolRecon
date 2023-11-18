@@ -1,6 +1,7 @@
 import os, piq
 from re import I
 from stat import UF_OPAQUE
+from torchvision.utils import save_image
 
 import numpy as np
 import torch
@@ -19,6 +20,27 @@ from .utils.renderer import VolumeRenderer
 from .ray_transformer import RayTransformer
 from .feature_volume import FeatureVolume
 
+def save_result(rgb, rgb_gt, depth, depth_gt):
+    print('rgb', rgb.shape)
+    print('rgb_gt', rgb_gt.shape)
+    print('depth', depth.shape)
+    print('depth_gt', depth_gt.shape)
+    """
+    rgb, rgb_gt: (B, 3, H, W)
+    depth, depth_gt: (B, H, W)
+    """
+    for i in range(depth.shape[0]):
+            depth_s = depth[i,:,:].detach().cpu().numpy()
+            depth_save = ((depth_s / np.max(depth_s)).astype(np.float32) * 255).astype(np.uint8)
+            Image.fromarray(depth_save).save(os.path.join('temp_output/depth', "%d_depth.png"%i))
+    for i in range(depth.shape[0]):
+            depth_s = depth_gt[i,:,:].detach().cpu().numpy()
+            depth_save = ((depth_s / np.max(depth_s)).astype(np.float32) * 255).astype(np.uint8)
+            Image.fromarray(depth_save).save(os.path.join('temp_output/depth_gt', "%d_depth.png"%i))
+    for i in range(rgb.shape[0]):
+        save_image(rgb[i], './temp_output/rgb/%d_image.png'%i)
+    for i in range(rgb_gt.shape[0]):
+        save_image(rgb_gt[i], './temp_output/rgb/%d_image_gt.png'%i)
 
 class VolRecon(pl.LightningModule):
     def __init__(self, args):
@@ -315,6 +337,7 @@ class VolRecon(pl.LightningModule):
         depths = rearrange(depth_list, "B (H W) -> B H W", H=imgH)
         rgb_imgs_2 = rearrange(rgb_list_2, "B (H W) DimRGB -> B DimRGB H W", H=imgH)
         depths_2 = rearrange(depth_list_2, "B (H W) -> B H W", H=imgH)
+        save_result(rgb_imgs_2, rgb_gt_imgs, depths_2, batch['depths_h'][:,0])
         
         # metrics
         loss_rgb = torch.nn.functional.mse_loss(rgb_list, rgb_gt_list)

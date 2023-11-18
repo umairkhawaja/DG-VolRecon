@@ -376,14 +376,15 @@ class MVSDataset(Dataset):
         # depths_prior_h = torch.from_numpy(depths_prior_h.astype(np.float32))[start_idx:]
         # sample['depths_prior_h'] = depths_prior_h
         # self.save_depth(sample=sample)
-        save_image(sample['ref_img'], './temp_output/tensor_image.png')
+        # save_image(sample['ref_img'], './temp_output/tensor_image.png')
+        temp = depths_h
         depths_h = torch.from_numpy(depths_h.astype(np.float32))[start_idx:]
         V,H,W = depths_h.size()       
         depths_h = depths_h.view(V,-1)
         depths_h = depths_h/cam_ray_d[2:3,:]
         sample['depths_h'] = depths_h.view(V,H,W)
 
-        depths_prior_h = torch.from_numpy(depths_prior_h.astype(np.float32))[start_idx:]
+        depths_prior_h = torch.from_numpy(temp.astype(np.float32))[1:]
         V,H,W = depths_prior_h.size()    
         depths_prior_h = depths_prior_h.view(V,-1)
         depths_prior_h = depths_prior_h/cam_ray_d[2:3,:]
