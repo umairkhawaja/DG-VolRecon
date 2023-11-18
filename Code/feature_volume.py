@@ -75,14 +75,16 @@ class FeatureVolume(nn.Module):
         unit_depth = unit_depth.unsqueeze(-1).repeat(1, 1, projected_depth.shape[-1])
         # print('unit_depth', unit_depth.shape)
         depth_difference = pixel_depth - projected_depth
-        delta_mask = torch.abs(depth_difference) < 4*unit_depth
+        delta_mask = torch.abs(depth_difference) < 8*unit_depth
+        
         delta_mask = rearrange(delta_mask, "B NV XYZ -> (B NV) XYZ")
+        depth_mask = delta_mask
         
         volume_feature, mask = grid_sample_2d(rearrange(feats, "B NV C H W -> (B NV) C H W"), volume_xyz_pixel) # (B NV) C XYZ 1, (B NV XYZ 1)
         
         volume_feature = volume_feature.squeeze(-1)
         mask = mask.squeeze(-1)  # (B NV XYZ)
-        mask = mask * mask_valid_depth * delta_mask
+        mask = mask * mask_valid_depth #* delta_mask
 
         volume_feature = rearrange(volume_feature, "(B NV) C (NumX NumY NumZ) -> B NV NumX NumY NumZ C", B=B, NV=NV, NumX=self.volume_reso, NumY=self.volume_reso, NumZ=self.volume_reso)
         mask = rearrange(mask, "(B NV) (NumX NumY NumZ) -> B NV NumX NumY NumZ", B=B, NV=NV, NumX=self.volume_reso, NumY=self.volume_reso, NumZ=self.volume_reso)
@@ -91,6 +93,10 @@ class FeatureVolume(nn.Module):
         weight = weight.unsqueeze(-1)  # B NV X Y Z 1
 
         # ---- step 2: compress ------------------------------------------------
+        depth_mask = rearrange(depth_mask, "(B NV) (NumX NumY NumZ) -> B NV NumX NumY NumZ", B=B, NV=NV, NumX=self.volume_reso, NumY=self.volume_reso, NumZ=self.volume_reso)
+        depth_weight = depth_mask# / (torch.sum(depth_mask, dim=1, keepdim=True) + 1e-8)
+        depth_weight = depth_weight.unsqueeze(-1) 
+        volume_feature = volume_feature * depth_weight
         volume_feature_compressed = self.linear(volume_feature)
 
         # ---- step 3: mean, var ------------------------------------------------
