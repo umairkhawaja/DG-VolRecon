@@ -272,7 +272,7 @@ class MVSDataset(Dataset):
                                           f'Depths_raw/{scan}/depth_map_{vid:04d}.pfm')
             depth_prior_filename = os.path.join(self.root_dir,
                                           f'MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm')
-            depth_prior_test_filename = os.path.join('/home/dataset/DTU_TEST',
+            depth_prior_test_filename = os.path.join('./DTU_TEST',
                                           f'{scan}/mvsnet_output/{vid:08d}_init.pfm')
             depth_prior_filename = depth_prior_filename if os.path.exists(depth_prior_filename) else depth_prior_test_filename
             assert os.path.exists(depth_prior_filename), f"File not found: {depth_prior_filename}"
