@@ -147,9 +147,12 @@ class MVSDataset(Dataset):
         metas = []
         ref_src_pairs = {}
         light_idxs = [3] if 'train' not in self.split else range(7)
+        # for debugging
+        # light_idxs = [1]
 
         with open(self.pair_filepath) as f:
             num_viewpoint = int(f.readline())
+            # num_viewpoint = 1
             # viewpoints (49)
             for _ in range(num_viewpoint):
                 ref_view = int(f.readline().rstrip())

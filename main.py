@@ -89,7 +89,7 @@ if __name__ == "__main__":
         dtu_dataset_train = MVSDataset(            
                 root_dir=args.root_dir,
                 split="train",
-                split_filepath="Code/dataset/dtu/lists/temp.txt",
+                split_filepath="Code/dataset/dtu/lists/train.txt",
                 pair_filepath="Code/dataset/dtu/dtu_pairs.txt",
                 n_views=5,
                 )
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         dtu_dataset_val = MVSDataset(            
                 root_dir=args.root_dir,
                 split="test",
-                split_filepath="Code/dataset/dtu/lists/temp.txt",
+                split_filepath="Code/dataset/dtu/lists/test.txt",
                 pair_filepath="Code/dataset/dtu/dtu_pairs.txt",
                 n_views=5,
                 test_ref_views = [23],  # only use view 23
