@@ -105,13 +105,17 @@ class FeatureVolume(nn.Module):
         projected_depth = projected_depth * projected_depth_mask
         # get unit depth
         unit_depth = (projected_depth[:, :, -1] - projected_depth[:, :, 0]) / (self.volume_reso - 1)
+        #print('unit_depth', unit_depth)
         unit_depth = unit_depth.unsqueeze(-1).repeat(1, 1, projected_depth.shape[-1])
-        # print('unit_depth', unit_depth.shape)
         depth_difference = pixel_depth - projected_depth
-        # min_val = torch.min(depth_difference)
-        # max_val = torch.max(depth_difference)
-        # print(max_val, min_val)
-        delta_mask = torch.abs(depth_difference) < 50 * unit_depth
+        min_val = torch.min(torch.abs(depth_difference))
+        max_val = torch.max(torch.abs(depth_difference))
+        #print(max_val, min_val)
+        delta_mask = torch.abs(depth_difference) < 15 * unit_depth
+        num_true = torch.sum(delta_mask).item()
+        num_false = delta_mask.numel() - num_true
+        #print(num_true)
+        #print('sparsity',1- num_true/(delta_mask.numel()))
         torch.set_printoptions(threshold=float('inf'))
         # print(delta_mask)
         # mutiply teo valid masks and delta mask
@@ -156,8 +160,8 @@ class FeatureVolume(nn.Module):
         # ---- step 2: compress ------------------------------------------------
         depth_mask = rearrange(depth_mask, "(B NV) (NumX NumY NumZ) -> B NV NumX NumY NumZ", B=B, NV=NV,
                                NumX=self.volume_reso, NumY=self.volume_reso, NumZ=self.volume_reso)
-        num_true = torch.sum(depth_mask).item()
-        num_false = depth_mask.numel() - num_true
+        #num_true = torch.sum(depth_mask).item()
+        #num_false = depth_mask.numel() - num_true
         depth_weight = depth_mask / (torch.sum(depth_mask, dim=1, keepdim=True) + 1e-8)
         depth_weight = depth_weight.unsqueeze(-1)
         volume_feature = volume_feature * depth_weight
