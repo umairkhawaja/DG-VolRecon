@@ -267,6 +267,8 @@ class DtuFitSparse:
         sample = {}
         render_idx = self.test_img_idx[idx % self.render_views]
         src_idx = self.test_img_idx[:]
+        print('render_idx', render_idx)
+        print('src_idx', src_idx)
 
         sample['scale_mat'] = torch.from_numpy(self.scale_mat)
         sample['trans_mat'] = torch.from_numpy(np.linalg.inv(self.ref_w2c))
@@ -309,20 +311,20 @@ class DtuFitSparse:
         for depth in self.all_depths:
             depth = depth * self.scale_factor
             self.depths.append(depth)
-        self.all_depths = torch.from_numpy(np.stack(self.depths)).to(torch.float32)
+        self.all_depths = torch.from_numpy(np.stack(self.depths)).to(torch.double)
         V,H,W = self.all_depths.size() 
         all_depths = self.all_depths      
         all_depths = all_depths.view(V,-1)
         all_depths = all_depths/sample['cam_ray_d'][2:3,:]
-        sample['depths_h'] = all_depths.view(V,H,W)
+        sample['depths_prior_h'] = all_depths.view(V,H,W)
         self.save_img_depth(sample=sample)
 
         sample['meta'] = "%s-%s-%08d"%(self.root_dir.split("/")[-1], self.scan_id, render_idx)
         return sample
     
     def save_img_depth(self, sample):
-        for i in range(sample['depths_h'].shape[0]):
-            depth = sample['depths_h'][i,:,:].cpu().numpy()
+        for i in range(sample['depths_prior_h'].shape[0]):
+            depth = sample['depths_prior_h'][i,:,:].cpu().numpy()
             depth_save = ((depth / np.max(depth)).astype(np.float32) * 255).astype(np.uint8)
             Image.fromarray(depth_save).save(os.path.join('temp_output/test', "%d_depth.png"%i))
         for i in range(sample['ref_img'].shape[0]):

@@ -147,9 +147,12 @@ class MVSDataset(Dataset):
         metas = []
         ref_src_pairs = {}
         light_idxs = [3] if 'train' not in self.split else range(7)
+        # for debugging
+        # light_idxs = [1]
 
         with open(self.pair_filepath) as f:
             num_viewpoint = int(f.readline())
+            # num_viewpoint = 1
             # viewpoints (49)
             for _ in range(num_viewpoint):
                 ref_view = int(f.readline().rstrip())
@@ -272,7 +275,7 @@ class MVSDataset(Dataset):
                                           f'Depths_raw/{scan}/depth_map_{vid:04d}.pfm')
             depth_prior_filename = os.path.join(self.root_dir,
                                           f'MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm')
-            depth_prior_test_filename = os.path.join('/home/dataset/DTU_TEST',
+            depth_prior_test_filename = os.path.join('./DTU_TEST',
                                           f'{scan}/mvsnet_output/{vid:08d}_init.pfm')
             depth_prior_filename = depth_prior_filename if os.path.exists(depth_prior_filename) else depth_prior_test_filename
             assert os.path.exists(depth_prior_filename), f"File not found: {depth_prior_filename}"
