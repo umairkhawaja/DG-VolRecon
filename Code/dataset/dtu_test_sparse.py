@@ -83,7 +83,7 @@ class DtuFitSparse:
             img_filename = os.path.join(self.data_dir, 'image/{:0>6}.png'.format(vid))
             
             #depth_filename = os.path.join(self.data_dir,f'mvsnet_output/{vid:08d}_init.pfm')
-            depth_filename = os.path.join(os.path.join('/home/wu/outputs_dtu/dtu_train_depth',
+            depth_filename = os.path.join(os.path.join('/home/wu/outputs_dtu/dtu_test_depth',
                                                 f'{self.scan_id}/depth_est_0/{vid:08d}.pfm'))
             #temp_dir = './dtu_training/Depths_raw/'+self.scan_id
             #depth_filename = os.path.join(temp_dir, f'depth_map_{vid:04d}.pfm')
