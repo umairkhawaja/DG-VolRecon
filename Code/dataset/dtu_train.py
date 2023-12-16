@@ -221,10 +221,11 @@ class MVSDataset(Dataset):
                              interpolation=cv2.INTER_NEAREST)  # (600, 800)
         depth_h = depth_h[44:556, 80:720]  # (512, 640)
         return depth_h
-    def read_depth_prior(self, filename):
+    def read_depth_prior(self, filename, prob_filename):
         depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (128, 160)
-        depth_h = cv2.resize(depth_h, (800, 600),
-                             interpolation=cv2.INTER_NEAREST)  # (600, 800)
+        #prob = np.array(read_pfm(prob_filename)[0], dtype=np.float32)
+        #mask = prob >= 0
+        #depth_h = np.where(mask, depth_h, 0)
         depth_h = depth_h[44:556, 80:720]  # (512, 640)
         return depth_h
 
@@ -277,8 +278,21 @@ class MVSDataset(Dataset):
                                           f'MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm')
             depth_prior_test_filename = os.path.join('./DTU_TEST',
                                           f'{scan}/mvsnet_output/{vid:08d}_init.pfm')
-            depth_prior_filename = depth_prior_filename if os.path.exists(depth_prior_filename) else depth_prior_test_filename
+
+            prob_filename = os.path.join(self.root_dir,
+                                          f'MVSNetProbs/{scan}_train/depth_map_{vid:04d}.pfm')
+            prob_test_filename= os.path.join('./DTU_TEST',
+                                          f'{scan}/mvsnet_output/{vid:08d}_prob.pfm')
+            prob_filename = prob_filename if os.path.exists(
+                prob_filename) else prob_test_filename
+            depth_prior_filename = depth_prior_filename if os.path.exists(
+                depth_prior_filename) else depth_prior_test_filename
+            depth_prior_filename = os.path.join('/home/wu/outputs_dtu/dtu_train_depth',
+                                                f'{scan}/depth_est_0/{vid:08d}.pfm')
+            prob_filename = os.path.join('/home/sibo/workspace/wsb/AA-RMVSNet/outputs_dtu/dtu_train_depth/',
+                                                f'{scan}/confidence_0/{vid:08d}.pfm')
             assert os.path.exists(depth_prior_filename), f"File not found: {depth_prior_filename}"
+            #assert os.path.exists(prob_filename), f"File not found: {prob_filename}"
 
             
             img = Image.open(img_filename)
@@ -299,7 +313,7 @@ class MVSDataset(Dataset):
             if os.path.exists(depth_prior_filename):  # and i == 0
                 # if i == 0:
                 #     print(depth_prior_filename)
-                depth_h_prior = self.read_depth_prior(depth_prior_filename)
+                depth_h_prior = self.read_depth_prior(depth_prior_filename, prob_filename)
                 depths_h_prior.append(depth_h_prior)
 
         scale_mat, scale_factor = self.cal_scale_mat(img_hw=[self.img_wh[1], self.img_wh[0]],
@@ -387,7 +401,8 @@ class MVSDataset(Dataset):
         depths_h = depths_h/cam_ray_d[2:3,:]
         sample['depths_h'] = depths_h.view(V,H,W)
 
-        depths_prior_h = torch.from_numpy(temp.astype(np.float32))[1:]
+        depths_prior_h = torch.from_numpy(depths_prior_h.astype(np.float32))[1:]
+        # depths_prior_h = torch.from_numpy(temp.astype(np.float32))[1:]
         V,H,W = depths_prior_h.size()    
         depths_prior_h = depths_prior_h.view(V,-1)
         depths_prior_h = depths_prior_h/cam_ray_d[2:3,:]
@@ -398,3 +413,4 @@ class MVSDataset(Dataset):
         
      
         return sample
+

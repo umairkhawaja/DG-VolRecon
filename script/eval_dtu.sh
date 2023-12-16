@@ -3,7 +3,7 @@
 
 DATASET="./DTU_TEST"
 
-LOAD_CKPT="./checkpoints/lightning_logs/c0vkftca/checkpoints/epoch=15-step=193200.ckpt"
+LOAD_CKPT="./checkpoints/lightning_logs/j7rbdqfx/checkpoints/epoch=15-step=193195.ckpt"
 
 OUT_DIR="./outputs"
 

@@ -163,6 +163,7 @@ if __name__ == "__main__":
         strategy = "ddp",
         max_epochs=args.max_epochs,
         check_val_every_n_epoch=1, 
+        #val_check_interval = 0.1,
         logger=logger,
         num_sanity_val_steps=1,
         )
