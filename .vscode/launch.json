@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "VolRecon: debug",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                // "PYTHONPATH": "${workspaceRoot}"
+                "PYTHONPATH": "${PYTHONPATH}:/home/umair/VolReconWithDepthPriors/"
+            },
+            "cwd": "${workspaceFolder}",
+        }
+    ]
+}
