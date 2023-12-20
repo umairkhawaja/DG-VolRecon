@@ -14,10 +14,10 @@ from pytorch_lightning import seed_everything
 from pytorch_lightning.utilities.model_summary import ModelSummary
 
 
-from code.model import VolRecon
-from code.dataset.dtu_train import MVSDataset
-from code.dataset.dtu_test_sparse import DtuFitSparse
-from code.dataset.general_fit import GeneralFit
+from Code.model import VolRecon
+from Code.dataset.dtu_train import MVSDataset
+from Code.dataset.dtu_test_sparse import DtuFitSparse
+from Code.dataset.general_fit import GeneralFit
 
 PI = math.pi
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     Path(args.logdir).mkdir(parents=True, exist_ok=True)
 
     logger = WandbLogger(
-        name="volrecon_" + args.logdir.rsplit("/")[-1],
+        name=args.logdir.rsplit("/")[-1],
         save_dir=args.logdir,
         offline=False,
     )
@@ -254,6 +254,7 @@ if __name__ == "__main__":
         strategy="ddp",
         max_epochs=args.max_epochs,
         check_val_every_n_epoch=1,
+        # val_check_interval = 0.1,
         logger=logger,
         num_sanity_val_steps=1,
     )
