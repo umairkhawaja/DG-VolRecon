@@ -14,10 +14,10 @@ from pytorch_lightning import seed_everything
 from pytorch_lightning.utilities.model_summary import ModelSummary
 
 
-from Code.model import VolRecon
-from Code.dataset.dtu_train import MVSDataset
-from Code.dataset.dtu_test_sparse import DtuFitSparse
-from Code.dataset.general_fit import GeneralFit
+from code.model import VolRecon
+from code.dataset.dtu_train import MVSDataset
+from code.dataset.dtu_test_sparse import DtuFitSparse
+from code.dataset.general_fit import GeneralFit
 
 PI = math.pi
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -65,13 +65,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--concat_tsdf_vol",
-        dest="concat_tsdf_vol",
-        action="store_true",
-        help="Concatenate a TSDF volume built from 2D depth maps to feature volume",
-    )
-
-    parser.add_argument(
         "--volume_reso",
         dest="volume_reso",
         type=int,
@@ -100,6 +93,37 @@ if __name__ == "__main__":
         "--logdir",
         default="./checkpoints",
         help="the directory to save checkpoints/logs",
+    )
+
+    # -------------------------------- args for DG-VolRecon ----------------------------
+    parser.add_argument(
+        "--concat_tsdf_vol",
+        dest="concat_tsdf_vol",
+        action="store_true",
+        help="Concatenate a TSDF volume built from 2D depth maps to feature volume",
+    )
+
+    parser.add_argument(
+        "--dg_feat_vol",
+        dest="dg_feat_vol",
+        action="store_true",
+        help="Use a Depth-Guided masking for building 3D feature volume",
+    )
+
+    parser.add_argument(
+        "--depth_tolerance_thresh",
+        dest="depth_tolerance_thresh",
+        type=int,
+        default=25,
+        help="Depth delta tolerance while DG-Masking in feature volume",
+    )
+
+    parser.add_argument(
+        "--depth_prior_name",
+        dest="depth_prior_name",
+        type=str,
+        default="aarmvsnet",
+        help="Predicted depth prior to use (mvsnet aarmvsnet colmap)",
     )
 
     # -------------------------------- args for testing --------------------------------
@@ -160,6 +184,7 @@ if __name__ == "__main__":
             split_filepath="code/dataset/dtu/lists/train.txt",
             pair_filepath="code/dataset/dtu/dtu_pairs.txt",
             n_views=5,
+            depth_prior_name=args.depth_prior_name,
         )
 
         dtu_dataset_val = MVSDataset(
@@ -169,6 +194,7 @@ if __name__ == "__main__":
             pair_filepath="code/dataset/dtu/dtu_pairs.txt",
             n_views=5,
             test_ref_views=[23],  # only use view 23
+            depth_prior_name=args.depth_prior_name,
         )
 
         print("dtu_dataset_train:", len(dtu_dataset_train))

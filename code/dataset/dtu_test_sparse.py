@@ -49,6 +49,7 @@ class DtuFitSparse:
         near=425,
         far=900,
         set=0,
+        depth_prior_name="aarmvsnet",
     ):
         super(DtuFitSparse, self).__init__()
         logging.info("Load data: Begin")
@@ -59,6 +60,7 @@ class DtuFitSparse:
         self.n_views = n_views
         self.offset_dist = 25  # 25mm
         self.render_views = n_views
+        self.depth_prior_name = depth_prior_name
 
         if set == 0:
             self.view_list = [23, 24, 33, 22, 15, 34, 14, 32, 16, 35, 25]
@@ -87,6 +89,8 @@ class DtuFitSparse:
         self.world_mats_np = []
         self.images_list = []
         self.depths_list = []
+        self.gt_depths_list = []
+
         for vid in self.idx:
             proj_mat_filename = os.path.join(
                 self.root_dir, "cameras/{:0>8}_cam.txt".format(vid)
@@ -95,14 +99,32 @@ class DtuFitSparse:
             self.world_mats_np.append(P)
             img_filename = os.path.join(self.data_dir, "image/{:0>6}.png".format(vid))
 
-            depth_filename = os.path.join(
-                self.data_dir, f"mvsnet_output/{vid:08d}_init.pfm"
-            )
-            temp_dir = "/home/dataset/mvs_training/dtu/Depths_raw/" + self.scan_id
-            depth_filename = os.path.join(temp_dir, f"depth_map_{vid:04d}.pfm")
+            if self.depth_prior_name == "mvsnet":
+                depth_filename = os.path.join(
+                    self.data_dir, f"mvsnet_output/{vid:08d}_init.pfm"
+                )
+            elif self.depth_prior_name == "aarmvsnet":
+                depth_filename = os.path.join(
+                    os.path.join(
+                        "/home/wu/outputs_dtu/dtu_test_depth",
+                        f"{self.scan_id}/depth_est_0/{vid:08d}.pfm",
+                    )
+                )
+            else:
+                raise NotImplementedError
             assert os.path.exists(depth_filename), f"File not found: {depth_filename}"
+
+            gt_depth_filename = os.path.join(
+                "/home/dataset/mvs_training/dtu/Depths_raw/",
+                f"depth_map_{vid:04d}.pfm",
+            )
+            assert os.path.exists(
+                depth_filename
+            ), f"Ground-truth Depth file not found: {gt_depth_filename}"
+
             self.images_list.append(img_filename)
             self.depths_list.append(depth_filename)
+            self.gt_depths_list.append(gt_depth_filename)
 
         self.raw_near_fars = np.stack(
             [np.array([self.near, self.far]) for i in range(len(self.images_list))]
@@ -111,7 +133,8 @@ class DtuFitSparse:
         self.ref_w2c = np.linalg.inv(load_K_Rt_from_P(None, ref_world_mat[:3, :4])[1])
 
         self.all_images = []
-        self.all_depths = []
+        self.all_depths_gt = []
+        self.all_depths_prior = []
         self.all_intrinsics = []
         self.all_w2cs = []
         self.all_w2cs_original = []
@@ -178,15 +201,11 @@ class DtuFitSparse:
 
         return P
 
-    def read_depth_prior(self, filename):
-        depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (128, 160)
+    def read_depth(self, filename):
+        depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)
         depth_h = cv.resize(
-            depth_h, (600, 800), interpolation=cv.INTER_NEAREST
-        )  # (600, 800)
-        # depth_h = cv.resize(
-        # depth_h, None, fx=0.5, fy=0.5, interpolation=cv.INTER_NEAREST
-        # )
-        # depth_h = depth_h[44:556, 80:720]  # (512, 640)
+            depth_h, None, fx=0.5, fy=0.5, interpolation=cv.INTER_NEAREST
+        )
         return depth_h
 
     def load_scene(self):
@@ -204,8 +223,10 @@ class DtuFitSparse:
             self.all_images.append(np.transpose(image[:, :, ::-1], (2, 0, 1)))
 
             # load depth maps
-            depth_h = self.read_depth_prior(self.depths_list[idx])
-            self.all_depths.append(depth_h)
+            depth_prior_h = self.read_depth(self.depths_list[idx])
+            depth_h = self.read_depth(self.gt_depths_list[idx])
+            self.all_depths_gt.append(depth_h)
+            self.all_depths_prior.append(depth_prior_h)
 
             P = self.world_mats_np[idx]
             P = P[:3, :4]
@@ -324,7 +345,6 @@ class DtuFitSparse:
         sample["extrinsic_render_view"] = torch.from_numpy(
             self.all_render_w2cs_original[render_idx]
         )
-        # src_idx = [i for i in src_idx if i != render_idx] # This worsens performance
         print(f"Reference Idx: {render_idx} | Source Idx: {src_idx}")
         sample["c2ws"] = self.scaled_c2ws
         sample["source_c2ws"] = self.scaled_c2ws[src_idx]
@@ -376,20 +396,36 @@ class DtuFitSparse:
         cam_ray_d = cam_ray_d / torch.norm(cam_ray_d, dim=0)
         sample["cam_ray_d"] = cam_ray_d.float()
 
-        depths_temp = []
-        for depth in self.all_depths:
+        depth_priors_temp = []
+        for depth in self.all_depths_prior:
             depth = depth * self.scale_factor
-            depths_temp.append(depth)
-        all_depths_temp = torch.from_numpy(np.stack(depths_temp)).to(torch.double)
-        V, H, W = all_depths_temp.size()
-        all_depths = all_depths_temp
+            depth_priors_temp.append(depth)
+        all_depth_priors_temp = torch.from_numpy(np.stack(depth_priors_temp)).to(
+            torch.double
+        )
+
+        V, H, W = all_depth_priors_temp.size()
+        all_depths = all_depth_priors_temp
         all_depths = all_depths.view(V, -1)
         all_depths = all_depths / sample["cam_ray_d"][2:3, :]
 
-        sample["depths_prior_h"] = all_depths.view(V, H, W)  # NOTE: Using ground-truth
+        sample["depths_prior_h"] = all_depths.view(V, H, W)
         sample["source_depths_prior_h"] = sample["depths_prior_h"][src_idx]
-        sample["depths_h"] = all_depths.view(V, H, W)
+
+        depth_gt_temp = []
+        for depth in self.all_depths_prior:
+            depth = depth * self.scale_factor
+            depth_gt_temp.append(depth)
+        all_depth_gt_temp = torch.from_numpy(np.stack(depth_gt_temp)).to(torch.double)
+
+        V, H, W = all_depth_gt_temp.size()
+        all_depths_gt = all_depth_gt_temp
+        all_depths_gt = all_depths_gt.view(V, -1)
+        all_depths_gt = all_depths_gt / sample["cam_ray_d"][2:3, :]
+
+        sample["depths_h"] = all_depths_gt.view(V, H, W)
         sample["source_depths_h"] = sample["depths_h"][src_idx]
+
         self.save_img_depth(sample=sample)
 
         sample["meta"] = "%s-%s-%08d" % (
@@ -400,6 +436,9 @@ class DtuFitSparse:
         return sample
 
     def save_img_depth(self, sample):
+        from pathlib import Path
+
+        Path("temp_output/test").mkdir(parents=True, exist_ok=True)
         for i in range(sample["depths_prior_h"].shape[0]):
             depth = sample["depths_prior_h"][i, :, :].cpu().numpy()
             depth_save = ((depth / np.max(depth)).astype(np.float32) * 255).astype(
@@ -409,8 +448,8 @@ class DtuFitSparse:
                 os.path.join("temp_output/test", "%d_depth.png" % i)
             )
         for i in range(sample["ref_img"].shape[0]):
-            save_image(sample["ref_img"][i], "./temp_output/test/ref_image.png")
+            save_image(sample["ref_img"][i], "temp_output/test/ref_image.png")
         for i in range(sample["source_imgs"].shape[0]):
             save_image(
-                sample["source_imgs"][i], "./temp_output/test/source_image_%d.png" % i
+                sample["source_imgs"][i], "temp_output/test/source_image_%d.png" % i
             )

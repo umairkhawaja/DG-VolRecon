@@ -9,6 +9,7 @@ from PIL import Image
 from tqdm import tqdm
 import pytorch_lightning as pl
 
+import wandb
 from einops import rearrange, reduce, repeat
 
 from .utils.sampler import FixedSampler, ImportanceSampler
@@ -22,51 +23,6 @@ from .dg_feature_volume import DepthGuidedFeatureVolume
 
 from pathlib import Path
 from torchvision.utils import save_image
-
-
-import wandb
-
-
-# # Inside your LightningModule method
-# def log_images(batch_idx, rgb, rgb_gt, depth, depth_gt):
-#     """
-#     Log images to WandB
-#     rgb, rgb_gt: (B, 3, H, W)
-#     depth, depth_gt: (B, H, W)
-#     """
-#     logged_images = {}
-#     for i in range(depth.shape[0]):
-#         # Process and log depth images
-#         depth_s = depth[i, :, :].detach().cpu().numpy()
-#         depth_save = ((depth_s / np.max(depth_s)).astype(np.float32) * 255).astype(
-#             np.uint8
-#         )
-#         logged_images[f"depth/{batch_idx}_{i}"] = wandb.Image(
-#             Image.fromarray(depth_save)
-#         )
-
-#         # Process and log ground truth depth images
-#         depth_gt_s = depth_gt[i, :, :].detach().cpu().numpy()
-#         depth_gt_save = (
-#             (depth_gt_s / np.max(depth_gt_s)).astype(np.float32) * 255
-#         ).astype(np.uint8)
-#         logged_images[f"depth_gt/{batch_idx}_{i}"] = wandb.Image(
-#             Image.fromarray(depth_gt_save)
-#         )
-
-#     # Log RGB and ground truth RGB images
-#     for i in range(rgb.shape[0]):
-#         logged_images[f"rgb/{batch_idx}_{i}"] = wandb.Image(rgb[i].detach().cpu())
-#     for i in range(rgb_gt.shape[0]):
-#         logged_images[f"rgb_gt/{batch_idx}_{i}"] = wandb.Image(rgb_gt[i].detach().cpu())
-
-#     # Log all images to WandB
-#     wandb.log(logged_images)
-
-
-import numpy as np
-import wandb
-from PIL import Image
 
 
 def log_images(rgb, rgb_gt, depth, depth_gt):
@@ -160,15 +116,12 @@ class VolRecon(pl.LightningModule):
         self.ray_transformer = RayTransformer(args=args)
 
         if self.args.volume_reso > 0:
-            if self.args.concat_tsdf_vol:
-                self.feature_volume = DepthGuidedFeatureVolume(
-                    volume_reso=self.args.volume_reso,
-                    num_views=4,  ## Hardcoded to 4 since train uses 5
-                )
-            else:
-                self.feature_volume = FeatureVolume(
-                    volume_reso=self.args.volume_reso,
-                )
+            self.feature_volume = FeatureVolume(
+                volume_reso=self.args.volume_reso,
+                dg_feat_vol=self.args.dg_feat_vol,
+                concat_tsdf_vol=self.args.concat_tsdf_vol,
+                depth_tolerance_thresh=self.args.depth_tolerance_thresh,
+            )
 
         self.pos_encoding = self.order_posenc(d_hid=16, n_samples=self.point_num)
         self.pos_encoding_2 = self.order_posenc(

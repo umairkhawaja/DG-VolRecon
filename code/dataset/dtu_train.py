@@ -88,6 +88,7 @@ class MVSDataset(Dataset):
         N_rays=1024,
         batch_size=1,
         test_ref_views=[],
+        depth_prior_name="aarmvsnet",
     ):
         self.root_dir = root_dir
         self.split = split
@@ -101,6 +102,8 @@ class MVSDataset(Dataset):
         self.test_ref_views = test_ref_views  # used for validation
         self.scale_factor = 1.0
         self.scale_mat = np.float32(np.diag([1, 1, 1, 1.0]))
+
+        self.depth_prior_name = depth_prior_name
 
         if img_wh is not None:
             assert (
@@ -241,9 +244,9 @@ class MVSDataset(Dataset):
         return depth_h
 
     def read_depth_prior(self, filename):
-        depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (128, 160)
+        depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)
         depth_h = cv2.resize(
-            depth_h, (800, 600), interpolation=cv2.INTER_NEAREST
+            depth_h, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_NEAREST
         )  # (600, 800)
         depth_h = depth_h[44:556, 80:720]  # (512, 640)
         return depth_h
@@ -263,6 +266,10 @@ class MVSDataset(Dataset):
         depth: supervision, (V, 512, 640)
         depth_prior: prior, (V, 512, 640)
         """
+        from pathlib import Path
+
+        Path("temp_output/depth").mkdir(exist_ok=True, parents=True)
+
         for i in range(sample["depths_h"].shape[0]):
             depth = sample["depths_h"][i, :, :].cpu().numpy()
             depth_save = ((depth / np.max(depth)).astype(np.float32) * 255).astype(
@@ -302,17 +309,48 @@ class MVSDataset(Dataset):
             depth_filename = os.path.join(
                 self.root_dir, f"Depths_raw/{scan}/depth_map_{vid:04d}.pfm"
             )
-            depth_prior_filename = os.path.join(
-                self.root_dir, f"MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm"
-            )
-            depth_prior_test_filename = os.path.join(
-                "/home/dataset/DTU_TEST", f"{scan}/mvsnet_output/{vid:08d}_init.pfm"
-            )
-            depth_prior_filename = (
-                depth_prior_filename
-                if os.path.exists(depth_prior_filename)
-                else depth_prior_test_filename
-            )
+            if self.depth_prior_name == "mvsnet":
+                depth_prior_filename = os.path.join(
+                    self.root_dir, f"MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm"
+                )
+                depth_prior_test_filename = os.path.join(
+                    "./DTU_TEST", f"{scan}/mvsnet_output/{vid:08d}_init.pfm"
+                )
+                depth_prior_filename = (
+                    depth_prior_filename
+                    if os.path.exists(
+                        depth_prior_filename
+                    )  # Handle if we want to overfit on test samples for debugging
+                    else depth_prior_test_filename
+                )
+
+                prob_filename = os.path.join(
+                    self.root_dir, f"MVSNetProbs/{scan}_train/depth_map_{vid:04d}.pfm"
+                )
+                prob_test_filename = os.path.join(
+                    "./DTU_TEST", f"{scan}/mvsnet_output/{vid:08d}_prob.pfm"
+                )
+                prob_filename = (
+                    prob_filename
+                    if os.path.exists(prob_filename)
+                    else prob_test_filename
+                )
+            elif self.depth_prior_name == "aarmvsnet":
+                depth_prior_filename = os.path.join(
+                    "/home/wu/outputs_dtu/dtu_train_depth",
+                    f"{scan}/depth_est_0/{vid:08d}.pfm",
+                )
+                prob_filename = os.path.join(
+                    "/home/sibo/workspace/wsb/AA-RMVSNet/outputs_dtu/dtu_train_depth/",
+                    f"{scan}/confidence_0/{vid:08d}.pfm",
+                )
+            elif self.depth_prior_name == "colmap":
+                raise NotImplementedError
+            else:
+                assert (
+                    0
+                ), "Enter valid depth_prior_name key: (mvsnet, aarmvsnet, colmap)"
+
             assert os.path.exists(
                 depth_prior_filename
             ), f"File not found: {depth_prior_filename}"
@@ -446,11 +484,6 @@ class MVSDataset(Dataset):
         cam_ray_d = cam_ray_d / torch.linalg.norm(cam_ray_d, dim=0, keepdim=True)
         sample["cam_ray_d"] = cam_ray_d
 
-        # sample['depths_h'] = depths_h
-        # depths_prior_h = torch.from_numpy(depths_prior_h.astype(np.float32))[start_idx:]
-        # sample['depths_prior_h'] = depths_prior_h
-        # self.save_depth(sample=sample)
-        # save_image(sample['ref_img'], './temp_output/tensor_image.png')
         depths_h = torch.from_numpy(depths_h.astype(np.float32))[start_idx:]
         V, H, W = depths_h.size()
         depths_h = depths_h.view(V, -1)
@@ -464,9 +497,5 @@ class MVSDataset(Dataset):
         depths_prior_h = depths_prior_h / cam_ray_d[2:3, :]
         sample["depths_prior_h"] = depths_prior_h.view(V, H, W)
         sample["source_depths_prior_h"] = sample["depths_prior_h"][1:]
-
-        # print(scan)
-        # print(ref_view)
-        # self.save_depth(sample=sample)
 
         return sample
