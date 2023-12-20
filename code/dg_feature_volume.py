@@ -256,19 +256,19 @@ class DepthGuidedFeatureVolume(nn.Module):
         )
 
         # Convert TSDF to weights
-        tsdf_weights = self.tsdf_to_weights(tsdf_volume)
+        # tsdf_weights = self.tsdf_to_weights(tsdf_volume)
 
-        # Adjust dimensions of tsdf_weights to match volume_feature
-        tsdf_weights_expanded = tsdf_weights.unsqueeze(1)  # Adding a dimension for NV
-        tsdf_weights_expanded = tsdf_weights_expanded.expand(
-            -1, NV, -1, -1, -1
-        )  # Expanding to [B, NV, D, H, W]
-        tsdf_weights_expanded = tsdf_weights_expanded.unsqueeze(
-            -1
-        )  # Adding a dimension for feature channels
+        # # Adjust dimensions of tsdf_weights to match volume_feature
+        # tsdf_weights_expanded = tsdf_weights.unsqueeze(1)  # Adding a dimension for NV
+        # tsdf_weights_expanded = tsdf_weights_expanded.expand(
+        #     -1, NV, -1, -1, -1
+        # )  # Expanding to [B, NV, D, H, W]
+        # tsdf_weights_expanded = tsdf_weights_expanded.unsqueeze(
+        #     -1
+        # )  # Adding a dimension for feature channels
 
-        # Apply weights to the volume feature
-        volume_feature_weighted = volume_feature * tsdf_weights_expanded
+        # # Apply weights to the volume feature
+        # volume_feature_weighted = volume_feature * tsdf_weights_expanded
 
         ## TSDF CONCAT: Concatenate with volume feature BEFORE passing to compression ##
         # tsdf_volume_NV = torch.stack([tsdf_volume[:, :, :, :, None]] * NV, dim=1)
@@ -279,7 +279,7 @@ class DepthGuidedFeatureVolume(nn.Module):
         ######### END TSDF CONCAT ##########
 
         # ---- step 2: compress ------------------------------------------------
-        volume_feature_compressed = self.linear(volume_feature_weighted)
+        volume_feature_compressed = self.linear(volume_feature)
         # volume_feature_compressed = self.linear(v_D)
         # print(volume_feature_compressed.shape)
         # ---- step 3: mean, var ------------------------------------------------
@@ -295,11 +295,11 @@ class DepthGuidedFeatureVolume(nn.Module):
         volume_mean_var = torch.cat([mean, var], axis=-1)  # [B X Y Z C]
         volume_mean_var = volume_mean_var.permute(0, 4, 3, 2, 1)  # [B,C,Z,Y,X]
 
-        # tsdf_volume_mean_var = torch.concat(
-        #     [volume_mean_var, tsdf_volume[:, None]], dim=1
-        # )
+        tsdf_volume_mean_var = torch.concat(
+            [volume_mean_var, tsdf_volume[:, None]], dim=1
+        )
         # ---- step 4: 3D regularization ----------------------------------------
-        volume_mean_var_reg = self.volume_regularization(volume_mean_var)
-        # volume_mean_var_reg = self.volume_regularization(tsdf_volume_mean_var)
+        # volume_mean_var_reg = self.volume_regularization(volume_mean_var)
+        volume_mean_var_reg = self.volume_regularization(tsdf_volume_mean_var)
 
         return volume_mean_var_reg
