@@ -114,7 +114,7 @@ def tsdf_fusion(pred_depth_imgs, poses, K_pred_depth, input_coords):
     return tsdf, weight
 
 
-class DepthGuidedFeatureVolume(nn.Module):
+class FeatureVolume(nn.Module):
     """
     Create the coarse feature volume in a MVS-like way
     """
@@ -132,7 +132,6 @@ class DepthGuidedFeatureVolume(nn.Module):
         super().__init__()
 
         self.volume_reso = volume_reso
-        self.num_views = num_views
         self.dg_feat_vol = dg_feat_vol
         self.concat_tsdf = concat_tsdf_vol
         self.depth_tolerance_thresh = depth_tolerance_thresh
@@ -169,8 +168,8 @@ class DepthGuidedFeatureVolume(nn.Module):
         source_poses = batch["source_poses"]
         B, NV, _, _ = source_poses.shape
 
-        depth_prior_key = "source_depths_h"  # Using Ground-truth
-        # depth_prior_key = "source_depths_prior_h"  # Using predicted
+        # depth_prior_key = "source_depths_h"  # Using Ground-truth
+        depth_prior_key = "source_depths_prior_h"  # Using predicted
         depth_maps = batch[depth_prior_key]
 
         # ---- step 1: projection -----------------------------------------------

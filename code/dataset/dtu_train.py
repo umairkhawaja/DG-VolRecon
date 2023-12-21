@@ -239,15 +239,16 @@ class MVSDataset(Dataset):
         depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (1200, 1600)
         depth_h = cv2.resize(
             depth_h, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_NEAREST
-        )  # (600, 800)
+        )
         depth_h = depth_h[44:556, 80:720]  # (512, 640)
+
         return depth_h
 
     def read_depth_prior(self, filename):
         depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)
-        depth_h = cv2.resize(
-            depth_h, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_NEAREST
-        )  # (600, 800)
+        # depth_h = cv2.resize(
+        #     depth_h, (600, 800), interpolation=cv2.INTER_NEAREST
+        # )  # (600, 800) # NOTE: Doesn't work for AA-RMVSNET
         depth_h = depth_h[44:556, 80:720]  # (512, 640)
         return depth_h
 
@@ -314,7 +315,9 @@ class MVSDataset(Dataset):
                     self.root_dir, f"MVSNetDepths/{scan}_train/depth_map_{vid:04d}.pfm"
                 )
                 depth_prior_test_filename = os.path.join(
-                    "./DTU_TEST", f"{scan}/mvsnet_output/{vid:08d}_init.pfm"
+                    self.root_dir,
+                    "DTU_TEST",
+                    f"{scan}/mvsnet_output/{vid:08d}_init.pfm",
                 )
                 depth_prior_filename = (
                     depth_prior_filename
@@ -328,7 +331,9 @@ class MVSDataset(Dataset):
                     self.root_dir, f"MVSNetProbs/{scan}_train/depth_map_{vid:04d}.pfm"
                 )
                 prob_test_filename = os.path.join(
-                    "./DTU_TEST", f"{scan}/mvsnet_output/{vid:08d}_prob.pfm"
+                    self.root_dir,
+                    "DTU_TEST",
+                    f"{scan}/mvsnet_output/{vid:08d}_prob.pfm",
                 )
                 prob_filename = (
                     prob_filename
@@ -370,11 +375,16 @@ class MVSDataset(Dataset):
                 #     print(depth_filename)# and i == 0
                 depth_h = self.read_depth(depth_filename)
                 depths_h.append(depth_h)
+            else:
+                raise FileNotFoundError(depth_filename)
+
             if os.path.exists(depth_prior_filename):  # and i == 0
                 # if i == 0:
                 #     print(depth_prior_filename)
                 depth_h_prior = self.read_depth_prior(depth_prior_filename)
                 depths_h_prior.append(depth_h_prior)
+            else:
+                raise FileNotFoundError(depth_prior_filename)
 
         scale_mat, scale_factor = self.cal_scale_mat(
             img_hw=[self.img_wh[1], self.img_wh[0]],
