@@ -1,5 +1,5 @@
 import torch
-import cv2 as cv
+import cv2
 import numpy as np
 from torchvision.utils import save_image
 import os
@@ -19,7 +19,7 @@ def load_K_Rt_from_P(filename, P=None):
         lines = [[x[0], x[1], x[2], x[3]] for x in (x.split(" ") for x in lines)]
         P = np.asarray(lines).astype(np.float32).squeeze()
 
-    out = cv.decomposeProjectionMatrix(P)
+    out = cv2.decomposeProjectionMatrix(P)
     K = out[0]
     R = out[1]
     t = out[2]
@@ -116,6 +116,7 @@ class DtuFitSparse:
 
             gt_depth_filename = os.path.join(
                 "/home/dataset/mvs_training/dtu/Depths_raw/",
+                self.scan_id,
                 f"depth_map_{vid:04d}.pfm",
             )
             assert os.path.exists(
@@ -203,9 +204,9 @@ class DtuFitSparse:
 
     def read_depth(self, filename):
         depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)
-        depth_h = cv.resize(
-            depth_h, None, fx=0.5, fy=0.5, interpolation=cv.INTER_NEAREST
-        )
+        depth_h = cv2.resize(
+            depth_h, (600, 800), interpolation=cv2.INTER_NEAREST
+        )  # (600, 800)
         return depth_h
 
     def load_scene(self):
@@ -213,8 +214,8 @@ class DtuFitSparse:
         scale_y = self.img_wh[1] / self.original_img_wh[1]
 
         for idx in range(len(self.images_list)):
-            image = cv.imread(self.images_list[idx])
-            image = cv.resize(image, (self.img_wh[0], self.img_wh[1])) / 255.0
+            image = cv2.imread(self.images_list[idx])
+            image = cv2.resize(image, (self.img_wh[0], self.img_wh[1])) / 255.0
 
             image = image[
                 self.clip_wh[1] : self.img_wh[1] - self.clip_wh[3],
@@ -345,7 +346,6 @@ class DtuFitSparse:
         sample["extrinsic_render_view"] = torch.from_numpy(
             self.all_render_w2cs_original[render_idx]
         )
-        print(f"Reference Idx: {render_idx} | Source Idx: {src_idx}")
         sample["c2ws"] = self.scaled_c2ws
         sample["source_c2ws"] = self.scaled_c2ws[src_idx]
         sample["w2cs"] = self.scaled_w2cs  # (V, 4, 4)
@@ -405,15 +405,15 @@ class DtuFitSparse:
         )
 
         V, H, W = all_depth_priors_temp.size()
-        all_depths = all_depth_priors_temp
-        all_depths = all_depths.view(V, -1)
-        all_depths = all_depths / sample["cam_ray_d"][2:3, :]
+        all_depth_priors = all_depth_priors_temp
+        all_depth_priors = all_depth_priors.view(V, -1)
+        all_depth_priors = all_depth_priors / sample["cam_ray_d"][2:3, :]
 
-        sample["depths_prior_h"] = all_depths.view(V, H, W)
+        sample["depths_prior_h"] = all_depth_priors.view(V, H, W)
         sample["source_depths_prior_h"] = sample["depths_prior_h"][src_idx]
 
         depth_gt_temp = []
-        for depth in self.all_depths_prior:
+        for depth in self.all_depths_gt:
             depth = depth * self.scale_factor
             depth_gt_temp.append(depth)
         all_depth_gt_temp = torch.from_numpy(np.stack(depth_gt_temp)).to(torch.double)

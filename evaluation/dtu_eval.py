@@ -7,6 +7,7 @@ from scipy.io import loadmat
 import multiprocessing as mp
 import argparse
 import os
+import wandb
 
 
 def sample_single_tri(input_):
@@ -46,10 +47,13 @@ if __name__ == "__main__":
     thresh = args.downsample_density
     mean_d2s_list, mean_s2d_list, over_all_list = [], [], []
     scans = [24, 37, 40, 55, 63, 65, 69, 83, 97, 105, 106, 110, 114, 118, 122]
+    exp_name = args.outdir.split("/")[-1]
+    if not len(exp_name):
+        exp_name = args.outdir.split("/")[-2]
+
     for scan in scans:
         if args.mode == "mesh":
-            # data = os.path.join(args.outdir, "mesh", "final", "scan{}.ply".format(scan))
-            data = os.path.join(args.outdir, "mesh", "scan{}.ply".format(scan))
+            data = os.path.join(args.outdir, "mesh", "final", "scan{}.ply".format(scan))
             pbar = tqdm(total=9)
             pbar.set_description("read data mesh")
             data_mesh = o3d.io.read_triangle_mesh(data)
@@ -200,3 +204,30 @@ if __name__ == "__main__":
         over_all_list.append(over_all)
     print("final result")
     print(mean(mean_d2s_list), mean(mean_s2d_list), mean(over_all_list))
+
+# Initialize your W&B run
+# Define your project name and custom run ID
+project_name = "test_metrics_chamfer"  # replace with your project name
+custom_run_id = f"test_{exp_name}"  # replace with your desired run ID
+
+# Initialize a W&B run with the specified project name and custom run ID
+wandb.init(project=project_name, id=custom_run_id, resume="allow", dir=args.outdir)
+
+
+# Create a wandb.Table() object
+my_table = wandb.Table(columns=["Scan", "Mean D2S", "Mean S2D", "Overall"])
+
+# Add data to the table
+for i, scan in enumerate(scans):
+    my_table.add_data(str(scan), mean_d2s_list[i], mean_s2d_list[i], over_all_list[i])
+
+# Add mean metrics as the last row of the table
+my_table.add_data(
+    "Mean", np.mean(mean_d2s_list), np.mean(mean_s2d_list), np.mean(over_all_list)
+)
+
+# Log the table to W&B
+wandb.log({"Evaluation Metrics": my_table})
+
+# When you're finished logging, end the run
+wandb.finish()

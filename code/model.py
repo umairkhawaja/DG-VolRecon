@@ -19,7 +19,6 @@ from .utils.renderer import VolumeRenderer
 
 from .ray_transformer import RayTransformer
 from .feature_volume import FeatureVolume
-from .dg_feature_volume import DepthGuidedFeatureVolume
 
 from pathlib import Path
 from torchvision.utils import save_image

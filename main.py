@@ -6,6 +6,7 @@ from stat import UF_OPAQUE
 from tqdm import tqdm
 import math
 
+import wandb
 import torch
 from torch.utils.data import DataLoader
 from pytorch_lightning.loggers import WandbLogger
@@ -267,11 +268,14 @@ if __name__ == "__main__":
 
     Path(args.logdir).mkdir(parents=True, exist_ok=True)
 
-    logger = WandbLogger(
-        name=args.logdir.rsplit("/")[-1],
-        save_dir=args.logdir,
-        offline=False,
-    )
+    if not args.extract_geometry:
+        logger = WandbLogger(
+            name=args.logdir.rsplit("/")[-1],
+            save_dir=args.logdir,
+            offline=False,
+        )
+    else:
+        logger = None
 
     # -------------------------------- trainer ---------------------------------------
     trainer = pl.Trainer(
