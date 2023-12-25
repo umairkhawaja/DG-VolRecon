@@ -1,0 +1,12 @@
+[submodule "DepthNetworks/cascade-stereo"]
+	path = DepthNetworks/cascade-stereo
+	url = https://github.com/umairkhawaja/cascade-stereo.git
+	branc = ad4cv
+[submodule "DepthNetworks/MVSNet_pytorch"]
+	path = DepthNetworks/MVSNet_pytorch
+	url = https://github.com/umairkhawaja/MVSNet_pytorch.git
+	branch = ad4cv
+[submodule "DepthNetworks/MVSNet"]
+	path = DepthNetworks/MVSNet
+	url = https://github.com/umairkhawaja/MVSNet.git
+	branch = ad4cv

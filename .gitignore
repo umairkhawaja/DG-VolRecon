@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+*_outputs/
+checkpoints/
+DepthNetworks/*_outputs/
+DepthNetworks/scan9/
+*/**/*.pyc
+temp_output/

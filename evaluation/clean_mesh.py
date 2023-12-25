@@ -147,7 +147,7 @@ def clean_mesh_faces_by_mask(args, mesh_file, new_mesh_file, scan, imgs_idx, min
     old_faces = old_mesh.faces[:]
     mask = clean_points_by_mask(args, old_vertices, scan, imgs_idx, minimal_vis, mask_dilated_size)
     indexes = np.ones(len(old_vertices)) * -1
-    indexes = indexes.astype(np.long)
+    indexes = indexes.astype(np.int64)
     indexes[np.where(mask)] = np.arange(len(np.where(mask)[0]))
 
     faces_mask = mask[old_faces[:, 0]] & mask[old_faces[:, 1]] & mask[old_faces[:, 2]]
@@ -249,7 +249,7 @@ def clean_mesh_faces_outside_frustum(args, scan, old_mesh_file, new_mesh_file, i
     # # clean meshes
     new_mesh = trimesh.load(new_mesh_file)
     cc = trimesh.graph.connected_components(new_mesh.face_adjacency, min_len=500)
-    mask = np.zeros(len(new_mesh.faces), dtype=np.bool)
+    mask = np.zeros(len(new_mesh.faces), dtype=np.bool_)
     mask[np.concatenate(cc)] = True
     new_mesh.update_faces(mask)
     new_mesh.remove_unreferenced_vertices()
