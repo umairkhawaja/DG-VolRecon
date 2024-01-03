@@ -120,6 +120,7 @@ class VolRecon(pl.LightningModule):
                 dg_feat_vol=self.args.dg_feat_vol,
                 concat_tsdf_vol=self.args.concat_tsdf_vol,
                 depth_tolerance_thresh=self.args.depth_tolerance_thresh,
+                concat_prob_vol=self.args.concat_prob_vol,
             )
 
         self.pos_encoding = self.order_posenc(d_hid=16, n_samples=self.point_num)

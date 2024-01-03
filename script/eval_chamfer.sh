@@ -3,10 +3,10 @@
 # Exit immediately if any command exits with a non-zero status
 set -e
 
-EXP_NAME="tsdf-vol-concat_aarmvsnet-depths" # experiment to evaluate on
+EXP_NAME="tsdf-vol-ray768-aug_AA-depths" # experiment to evaluate on
 
 DATASET="/home/dataset/DTU_TEST/"
-LOAD_CKPT="checkpoints/tsdf-vol-concat_aarmvsnet-depths/lightning_logs/m47gx04u/checkpoints/epoch=15-step=193200.ckpt" # Your own weights
+LOAD_CKPT="checkpoints/tsdf-vol-ray768-aug_AA-depths/lightning_logs/blapg5hw/checkpoints/epoch=15-step=193200.ckpt" # Your own weights
 OUT_DIR="./eval_outputs/$EXP_NAME/"
 
 echo "Starting Chamfer Distance Evaluation..."

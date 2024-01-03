@@ -125,6 +125,7 @@ class FeatureVolume(nn.Module):
         dg_feat_vol=False,
         concat_tsdf_vol=False,
         depth_tolerance_thresh=25,
+        concat_prob_vol=False,
     ):
         """
         Set up the volume grid given resolution
@@ -136,6 +137,7 @@ class FeatureVolume(nn.Module):
         self.concat_tsdf = concat_tsdf_vol
         self.depth_tolerance_thresh = depth_tolerance_thresh
         self.volume_regularization = VolumeRegularization(concat_tsdf=concat_tsdf_vol)
+        self.concat_prob_vol = concat_prob_vol
 
         # the volume is a cube, so we only need to define the x, y, z
         x_line = (np.linspace(0, self.volume_reso - 1, self.volume_reso)) * 2 / (
@@ -160,6 +162,15 @@ class FeatureVolume(nn.Module):
             nn.Linear(16, 8),
         )
 
+    def augment_depth_inplace(self, depth_maps):
+        n_views = depth_maps.shape[1]
+        n_augment = n_views // 2
+
+        for i in range(len(depth_maps)):
+            j = np.random.choice(depth_maps.shape[1], size=n_augment, replace=False)
+            scale = torch.rand(len(j), device=depth_maps.device) * 0.2 + 0.9
+            depth_maps[i, j] *= scale[:, None, None]
+
     def forward(self, feats, batch):
         """
         feats: [B NV C H W], NV: number of views
@@ -171,6 +182,15 @@ class FeatureVolume(nn.Module):
         # depth_prior_key = "source_depths_h"  # Using Ground-truth
         depth_prior_key = "source_depths_prior_h"  # Using predicted
         depth_maps = batch[depth_prior_key]
+
+        # Augment depth maps by scaling with a random factor between [0.95, 1.05] for each depth map
+        # scale_factors = (
+        #     torch.rand(B, NV, 1, 1, device=depth_maps.device) * 0.1 + 0.95
+        # )  # B NV 1 1
+        # depth_maps = depth_maps * scale_factors  # Element-wise multiplication
+
+        ## FineRecon Depth Augmentation
+        self.augment_depth_inplace(depth_maps=depth_maps)
 
         # ---- step 1: projection -----------------------------------------------
         volume_xyz = torch.tensor(self.xyz).type_as(source_poses)
@@ -277,6 +297,42 @@ class FeatureVolume(nn.Module):
 
         weight = mask / (torch.sum(mask, dim=1, keepdim=True) + 1e-8)
         weight = weight.unsqueeze(-1)  # B NV X Y Z 1
+
+        if self.concat_prob_vol:
+            # Assume prob_maps is [B NV H W], the same size as depth_maps
+            # Process and reshape probability maps to match the volume grid
+            prob_volume, _ = grid_sample_2d(
+                rearrange(prob_maps.unsqueeze(2), "B NV C H W -> (B NV) C H W"),
+                volume_xyz_pixel,
+            )  # (B NV) 1 XYZ 1
+            prob_volume = prob_volume.squeeze(-1)  # (B NV XYZ)
+
+            prob_volume = rearrange(
+                prob_volume,
+                "(B NV) (NumX NumY NumZ) -> B NV NumX NumY NumZ",
+                B=B,
+                NV=NV,
+                NumX=self.volume_reso,
+                NumY=self.volume_reso,
+                NumZ=self.volume_reso,
+            )
+            prob_volume_weighted = (
+                prob_volume * weight
+            )  # Apply weights to probabilities
+
+            # Compress the probability volume along with the feature volume
+            prob_volume_compressed = self.linear(prob_volume_weighted)
+            mean_prob = torch.sum(
+                prob_volume_compressed * weight, dim=1, keepdim=True
+            )  # B 1 X Y Z
+            mean_prob = mean_prob.squeeze(1)
+
+            volume_mean_var_prob = torch.cat(
+                [mean, var, mean_prob], axis=-1
+            )  # [B X Y Z C]
+            volume_mean_var_prob = volume_mean_var_prob.permute(
+                0, 4, 3, 2, 1
+            )  # [B,C,Z,Y,X]
 
         ## NOTE: Concat TSDF Volume (V_d) Logic here
         if self.concat_tsdf:

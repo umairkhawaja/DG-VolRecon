@@ -112,6 +112,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--concat_prob_vol",
+        dest="concat_prob_vol",
+        action="store_true",
+        help="Add 3D uncertainty via probabilities",
+    )
+
+    parser.add_argument(
         "--depth_tolerance_thresh",
         dest="depth_tolerance_thresh",
         type=int,
