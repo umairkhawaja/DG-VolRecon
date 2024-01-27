@@ -162,15 +162,6 @@ class FeatureVolume(nn.Module):
             nn.Linear(16, 8),
         )
 
-    def augment_depth_inplace(self, depth_maps):
-        n_views = depth_maps.shape[1]
-        n_augment = n_views // 2
-
-        for i in range(len(depth_maps)):
-            j = np.random.choice(depth_maps.shape[1], size=n_augment, replace=False)
-            scale = torch.rand(len(j), device=depth_maps.device) * 0.2 + 0.9
-            depth_maps[i, j] *= scale[:, None, None]
-
     def forward(self, feats, batch):
         """
         feats: [B NV C H W], NV: number of views
@@ -190,7 +181,7 @@ class FeatureVolume(nn.Module):
         # depth_maps = depth_maps * scale_factors  # Element-wise multiplication
 
         ## FineRecon Depth Augmentation
-        self.augment_depth_inplace(depth_maps=depth_maps)
+        # self.augment_depth_inplace(depth_maps=depth_maps)
 
         # ---- step 1: projection -----------------------------------------------
         volume_xyz = torch.tensor(self.xyz).type_as(source_poses)
@@ -301,6 +292,7 @@ class FeatureVolume(nn.Module):
         if self.concat_prob_vol:
             # Assume prob_maps is [B NV H W], the same size as depth_maps
             # Process and reshape probability maps to match the volume grid
+            raise (NotImplementedError)
             prob_volume, _ = grid_sample_2d(
                 rearrange(prob_maps.unsqueeze(2), "B NV C H W -> (B NV) C H W"),
                 volume_xyz_pixel,

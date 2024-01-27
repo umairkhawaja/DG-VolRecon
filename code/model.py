@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 import wandb
 from einops import rearrange, reduce, repeat
 
-from .utils.sampler import FixedSampler, ImportanceSampler
+from .utils.sampler import FixedSampler, ImportanceSampler, DGSampler
 from .utils.feature_extractor import FPN_FeatureExtractor
 from .utils.single_variance_network import SingleVarianceNetwork
 from .utils.renderer import VolumeRenderer
@@ -108,6 +108,9 @@ class VolRecon(pl.LightningModule):
 
         self.feat_extractor = FPN_FeatureExtractor(out_ch=32)
         self.fixed_sampler = FixedSampler(point_num=self.point_num)
+        # Initialize the DGSampler
+        self.dgsampler = DGSampler(point_num=self.point_num, sample_radius=1.3)
+
         self.importance_sampler = ImportanceSampler(point_num=self.point_num_2)
         self.deviation_network = SingleVarianceNetwork(0.3)  # add variance network
 
@@ -193,6 +196,11 @@ class VolRecon(pl.LightningModule):
         B, L, _, imgH, imgW = batch["source_imgs"].shape
         RN = ray_idx.shape[1]
 
+        # Extract depth map from the batch
+        predicted_depth_maps = batch["depths_prior_h"]
+        ref_pred_depth = rearrange(predicted_depth_maps[:, 0], "B H W -> B (H W)")
+        pred_depth_z_vals = torch.gather(ref_pred_depth, 1, ray_idx)
+
         if not extract_geometry:
             # gt rgb for rays
             ref_img = rearrange(batch["ref_img"], "B DimRGB H W -> B DimRGB (H W)")
@@ -230,12 +238,27 @@ class VolRecon(pl.LightningModule):
                 camera_ray_d = rearrange(camera_ray_d, "B DimX RN -> (B RN) DimX")
                 near_z = near_z / camera_ray_d[:, 2]
                 far_z = far_z / camera_ray_d[:, 2]
-            points_x, z_val, points_d = self.fixed_sampler.sample_ray(
-                ray_o, ray_d, near_z=near_z, far_z=far_z
-            )
+
+            if self.args.dg_ray_sampling:
+                points_x, z_val, points_d = self.dgsampler.sample_ray(
+                    ray_o,
+                    ray_d,
+                    mid_z_val=pred_depth_z_vals,
+                    near_z=near_z,
+                    far_z=far_z,
+                )
+            else:
+                points_x, z_val, points_d = self.fixed_sampler.sample_ray(
+                    ray_o, ray_d, near_z=near_z, far_z=far_z
+                )
 
         else:
-            points_x, z_val, points_d = self.fixed_sampler.sample_ray(ray_o, ray_d)
+            if self.args.dg_ray_sampling:
+                points_x, z_val, points_d = self.dgsampler.sample_ray(
+                    ray_o, ray_d, mid_z_val=pred_depth_z_vals
+                )
+            else:
+                points_x, z_val, points_d = self.fixed_sampler.sample_ray(ray_o, ray_d)
 
         # SN is sample point number along the ray
         points_x = rearrange(points_x, "(B RN) SN DimX -> B RN SN DimX", B=B)
@@ -322,6 +345,15 @@ class VolRecon(pl.LightningModule):
             variance,
         )
 
+    def augment_depth_inplace(self, depth_maps):
+        n_views = depth_maps.shape[1]
+        n_augment = n_views // 2
+
+        for i in range(len(depth_maps)):
+            j = np.random.choice(depth_maps.shape[1], size=n_augment, replace=False)
+            scale = torch.rand(len(j), device=depth_maps.device) * 0.2 + 0.9
+            depth_maps[i, j] *= scale[:, None, None]
+
     def training_step(self, batch, batch_idx):
         B, L, _, imgH, imgW = batch["source_imgs"].shape
 
@@ -332,6 +364,9 @@ class VolRecon(pl.LightningModule):
         source_imgs_feat = rearrange(source_imgs_feat, "(B L) C H W -> B L C H W", L=L)
 
         if self.args.volume_reso > 0:
+            if self.args.random_scale_depth:
+                self.augment_depth_inplace(depth_maps=batch["depth_priors_h"])
+
             feature_volume = self.build_feature_volume(batch, source_imgs_feat)
         else:
             feature_volume = None
