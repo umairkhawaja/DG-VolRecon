@@ -105,10 +105,31 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--dg_ray_sampling",
+        dest="dg_ray_sampling",
+        action="store_true",
+        help="Use Depth-Guided Coarse point sampling along rays",
+    )
+
+    parser.add_argument(
+        "--random_scale_depth",
+        dest="random_scale_depth",
+        action="store_true",
+        help="Randomly scale depth values as an augmentation",
+    )
+
+    parser.add_argument(
         "--dg_feat_vol",
         dest="dg_feat_vol",
         action="store_true",
         help="Use a Depth-Guided masking for building 3D feature volume",
+    )
+
+    parser.add_argument(
+        "--concat_prob_vol",
+        dest="concat_prob_vol",
+        action="store_true",
+        help="Add 3D uncertainty via probabilities",
     )
 
     parser.add_argument(
