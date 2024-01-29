@@ -2,8 +2,9 @@
 
 > Code for the Advance Deep Learning for Visual Computing course project "Generalizable Neural Surface Reconstruction from RGB Images using Depth Priors"
 
-This is built upon the baseline work VolRecon. [Project](https://fangjinhuawang.github.io/VolRecon/) | [arXiv](https://arxiv.org/abs/2212.08067)
+This is built upon the baseline work VolRecon. [Github](https://github.com/IVRL/VolRecon) | [arXiv](https://arxiv.org/abs/2212.08067)
 
+We present our work and experiments in this [presentation](https://docs.google.com/presentation/d/1ty3ubfufFOt5IOksRfylXc15yQ23MwxNSIX_AXJHi1Q/edit?usp=sharing)
 
 ![method](./imgs/pipeline.jpeg)
 
