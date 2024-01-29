@@ -109,10 +109,10 @@ root_directory
 * Train the model by running `bash train_dtu.sh` on GPU.
 
 * Additional Flags for DG-VolRecon:
-  - "--concat_tsdf_vol": To generate a TSDF fusion channel using 2D depths and fuse with global feature volume
-  - "--dg_ray_sampling": To enable depth-guided sampling of points along sampled rays
-  - "--random_scale_depth": To randomly scale depth maps as an augmentation before building DG-feature volume and TSDF volumes
-  - "--dg_feat_vol": To enable depth-guided feature backprojection for the global feature volume
+  - `--concat_tsdf_vol`: To generate a TSDF fusion channel using 2D depths and fuse with global feature volume
+  - `--dg_ray_sampling`: To enable depth-guided sampling of points along sampled rays
+  - `--random_scale_depth`: To randomly scale depth maps as an augmentation before building DG-feature volume and TSDF volumes
+  - `--dg_feat_vol`: To enable depth-guided feature backprojection for the global feature volume
 
 
 ## Evaluation Metrics
