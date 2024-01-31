@@ -76,18 +76,23 @@ class DtuFitSparse:
         self.world_mats_np = []
         self.images_list = []
         self.depths_list = []
+        self.probs_list = []
         for vid in self.idx:
             proj_mat_filename = os.path.join(self.root_dir, 'cameras/{:0>8}_cam.txt'.format(vid))
             P = self.read_cam_file(proj_mat_filename)
             self.world_mats_np.append(P)
             img_filename = os.path.join(self.data_dir, 'image/{:0>6}.png'.format(vid))
+            depth_filename = os.path.join('/ssd/outputs_dtu/dtu_test_depth/',
+                                                f'{self.scan_id}/depth_est_0/{vid:08d}.pfm')
+            prob_filename = os.path.join('/ssd/outputs_dtu/dtu_test_depth/',
+                                                f'{self.scan_id}/confidence_0/{vid:08d}.pfm')
             
-            depth_filename = os.path.join(self.data_dir,f'mvsnet_output/{vid:08d}_init.pfm')
-            temp_dir = './dtu_training/Depths_raw/'+self.scan_id
-            depth_filename = os.path.join(temp_dir, f'depth_map_{vid:04d}.pfm')
+            # temp_dir = './dtu_training/Depths_raw/'+self.scan_id
+            # depth_filename = os.path.join(temp_dir, f'depth_map_{vid:04d}.pfm')
             assert os.path.exists(depth_filename), f"File not found: {depth_filename}"
             self.images_list.append(img_filename)
             self.depths_list.append(depth_filename)
+            self.probs_list.append(prob_filename)
 
         self.raw_near_fars = np.stack([np.array([self.near, self.far]) for i in range(len(self.images_list))])
         ref_world_mat = self.world_mats_np[0]
@@ -95,6 +100,8 @@ class DtuFitSparse:
 
         self.all_images = []
         self.all_depths = []
+        self.all_probs = []
+        self.all_stds = []
         self.all_intrinsics = []
         self.all_w2cs = []
         self.all_w2cs_original = []
@@ -149,14 +156,12 @@ class DtuFitSparse:
 
         return P
 
-    def read_depth_prior(self, filename):
+    def read_depth_prior(self, filename, prob_filename):
         depth_h = np.array(read_pfm(filename)[0], dtype=np.float32)  # (128, 160)
-        # depth_h = cv.resize(depth_h, (800, 600),
-        #                      interpolation=cv.INTER_NEAREST)  # (600, 800)
-        depth_h = cv.resize(depth_h, None, fx=0.5, fy=0.5,
-                             interpolation=cv.INTER_NEAREST)
-        # depth_h = depth_h[44:556, 80:720]  # (512, 640)
-        return depth_h
+        prob = np.array(read_pfm(prob_filename)[0], dtype=np.float32)
+        mask = prob >= 0
+        depth_h = np.where(mask, depth_h, 0)
+        return depth_h, prob
 
     def load_scene(self):
 
@@ -172,8 +177,9 @@ class DtuFitSparse:
             self.all_images.append(np.transpose(image[:, :, ::-1], (2, 0, 1)))
 
             # load depth maps
-            depth_h = self.read_depth_prior(self.depths_list[idx])
+            depth_h, prob = self.read_depth_prior(self.depths_list[idx], self.probs_list[idx])
             self.all_depths.append(depth_h)
+            self.all_probs.append(prob)
 
             P = self.world_mats_np[idx]
             P = P[:3, :4]
@@ -202,6 +208,8 @@ class DtuFitSparse:
         self.all_intrinsics = torch.from_numpy(np.stack(self.all_intrinsics)).to(torch.float32)
         self.all_w2cs = torch.from_numpy(np.stack(self.all_w2cs)).to(torch.float32)
         self.all_render_w2cs = torch.from_numpy(np.stack(self.all_render_w2cs)).to(torch.float32)
+        self.all_probs = torch.from_numpy(np.stack(self.all_probs)).to(torch.float32)
+        self.all_stds = 0 #self.conf2std(self.all_probs)
         self.img_wh = [self.img_wh[0] - self.clip_wh[0] - self.clip_wh[2],
                        self.img_wh[1] - self.clip_wh[1] - self.clip_wh[3]]
 
@@ -214,6 +222,10 @@ class DtuFitSparse:
         scale_mat = scale_mat.astype(np.float32)
 
         return scale_mat, 1. / radius.cpu().numpy()
+
+    def conf2std(self, confidence):
+        confidence *= 1e-4
+        return -2.5679e-2 * confidence + 3.2818e-2
 
 
     def scale_cam_info(self):
@@ -321,7 +333,9 @@ class DtuFitSparse:
         all_depths = all_depths.view(V,-1)
         all_depths = all_depths/sample['cam_ray_d'][2:3,:]
         sample['depths_prior_h'] = all_depths.view(V,H,W)
-        self.save_img_depth(sample=sample)
+        sample['depths_prob'] = self.all_probs
+        sample['depths_std'] = self.all_stds
+        # self.save_img_depth(sample=sample)
 
         sample['meta'] = "%s-%s-%08d"%(self.root_dir.split("/")[-1], self.scan_id, render_idx)
         return sample
@@ -337,4 +351,3 @@ class DtuFitSparse:
             save_image(sample['source_imgs'][i], './temp_output/test/source_image_%d.png'%i)
 
         
-
