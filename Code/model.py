@@ -140,9 +140,16 @@ class VolRecon(pl.LightningModule):
         # ---------------------- coarse sampling along the ray ----------------------
         if 'near_fars' in batch.keys():
             near_z = batch['near_fars'][:,0,0]
+            minmax_depth = batch["depths_prior_h"].reshape(B,-1)
+            minmax_depth[minmax_depth==0] = torch.finfo(minmax_depth.dtype).max
+            min_depth, _ = torch.min(minmax_depth, dim=1)
+            max_depth, _ = torch.max(minmax_depth, dim=1)
+            near_z = min_depth
+            
             near_z = repeat(near_z, "B -> B RN", RN=RN)
             near_z = rearrange(near_z, "B RN -> (B RN)")
             far_z = batch['near_fars'][:,0,1]
+            far_z = max_depth
             far_z = repeat(far_z, "B -> B RN", RN=RN)
             far_z = rearrange(far_z, "B RN -> (B RN)")
 
@@ -154,6 +161,17 @@ class VolRecon(pl.LightningModule):
             points_x, z_val, points_d = self.fixed_sampler.sample_ray(ray_o, ray_d, near_z=near_z, far_z=far_z)
 
         else:
+            minmax_depth = batch["depths_prior_h"].reshape(B,-1)
+            minmax_depth[minmax_depth==0] = torch.finfo(minmax_depth.dtype).max
+            min_depth, _ = torch.min(minmax_depth, dim=1)
+            max_depth, _ = torch.max(minmax_depth, dim=1)
+            near_z = min_depth
+
+            near_z = repeat(near_z, "B -> B RN", RN=RN)
+            near_z = rearrange(near_z, "B RN -> (B RN)")
+            far_z = max_depth
+            far_z = repeat(far_z, "B -> B RN", RN=RN)
+            far_z = rearrange(far_z, "B RN -> (B RN)")
             points_x, z_val, points_d = self.fixed_sampler.sample_ray(ray_o, ray_d)
 
         # SN is sample point number along the ray

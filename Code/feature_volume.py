@@ -111,7 +111,7 @@ class FeatureVolume(nn.Module):
         min_val = torch.min(torch.abs(depth_difference))
         max_val = torch.max(torch.abs(depth_difference))
         #print(max_val, min_val)
-        delta_mask = torch.abs(depth_difference) < 20 * unit_depth
+        delta_mask = torch.abs(depth_difference) < 25 * unit_depth
         num_true = torch.sum(delta_mask).item()
         num_false = delta_mask.numel() - num_true
         #print(num_true)
