@@ -8,7 +8,7 @@ We present our work and experiments in this [presentation](https://docs.google.c
 
 ![method](./imgs/pipeline.jpeg)
 
->**Abstract:** TODO
+>**Abstract:** Recent work on generalizable reconstruction use 2D-3D feature fusion across multiple sparse views to reconstruct scenes by predicting the TSDF values. Some works also predict color and depth by supervision through RGB images only via differentiable rendering. However, most works do not make use of depth priors which can improve the final reconstruction. Thus, we propose to add depth priors at various stages of the reconstruction pipeline using a depth estimator to enable detailed reconstruction from sparse views. Specifically, we investigate the impact of using depth in 2D-3D feature fusion, sampling of points along rays, and providing global shape priors to the MLP that predicts the SDF values. We build upon VolRecon \cite{ren2023volrecon}, a generalizable implicit reconstruction method and add MVS-consistent depth priors. Our experiments show that using depth information can improve the chamfer distance by 4\% on the DTU dataset, even with lower volume resolution.
 
 
 ## Installation
