@@ -24,9 +24,9 @@ class FixedSampler():
         mid_z_val = - reduce(ray_o * ray_d, "RN Dim_X -> RN", 'sum')
         mid_z_val = rearrange(mid_z_val, "RN -> 1 RN")
 
-        if near_z is None:
+        if far_z is None:
             # no near and far provided
-            near = mid_z_val - self.sample_radius
+            near = near_z#mid_z_val - self.sample_radius
             far = mid_z_val + self.sample_radius
         else:
             near = near_z

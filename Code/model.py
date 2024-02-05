@@ -149,7 +149,7 @@ class VolRecon(pl.LightningModule):
             near_z = repeat(near_z, "B -> B RN", RN=RN)
             near_z = rearrange(near_z, "B RN -> (B RN)")
             far_z = batch['near_fars'][:,0,1]
-            far_z = max_depth
+            #far_z = max_depth
             far_z = repeat(far_z, "B -> B RN", RN=RN)
             far_z = rearrange(far_z, "B RN -> (B RN)")
 
@@ -172,7 +172,13 @@ class VolRecon(pl.LightningModule):
             far_z = max_depth
             far_z = repeat(far_z, "B -> B RN", RN=RN)
             far_z = rearrange(far_z, "B RN -> (B RN)")
-            points_x, z_val, points_d = self.fixed_sampler.sample_ray(ray_o, ray_d)
+            camera_ray_d = torch.gather(batch['cam_ray_d'], 2, repeat(ray_idx, "B RN -> B DimX RN", DimX=3))
+            camera_ray_d = rearrange(camera_ray_d, "B DimX RN -> (B RN) DimX")
+            near_z = near_z / camera_ray_d[:,2]
+            far_z = far_z / camera_ray_d[:,2]
+            points_x, z_val, points_d = self.fixed_sampler.sample_ray(ray_o, ray_d, near_z=near_z, far_z=far_z)
+
+
 
         # SN is sample point number along the ray
         points_x = rearrange(points_x, "(B RN) SN DimX -> B RN SN DimX", B = B) 
