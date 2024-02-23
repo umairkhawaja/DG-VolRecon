@@ -197,7 +197,7 @@ class VolRecon(pl.LightningModule):
         RN = ray_idx.shape[1]
 
         # Extract depth map from the batch
-        predicted_depth_maps = batch["depths_prior_h"]
+        predicted_depth_maps = batch["depths_h"]
         ref_pred_depth = rearrange(predicted_depth_maps[:, 0], "B H W -> B (H W)")
         pred_depth_z_vals = torch.gather(ref_pred_depth, 1, ray_idx)
 

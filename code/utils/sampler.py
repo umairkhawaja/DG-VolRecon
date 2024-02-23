@@ -139,51 +139,96 @@ class DGSampler:
         """
 
         # Ensure mid_z_val matches the shape of ray_o and ray_d
-        mid_z_val = mid_z_val.view(-1, 1).T
-        # mid_z_val = -reduce(mid_z_val, "RN Dim_X -> RN", "sum")
-        # mid_z_val = rearrange(mid_z_val, "RN -> 1 RN")
+        mid_z_val = mid_z_val.view(-1)
+        mid_z_val = rearrange(mid_z_val, "RN -> 1 RN")
 
-        prior_near = mid_z_val - self.sample_radius
-        prior_far = mid_z_val + self.sample_radius
+        near = mid_z_val - self.sample_radius
+        far = mid_z_val + self.sample_radius
 
-        if near_z is None or far_z is None:
-            mid_z_sparse = -reduce(ray_o * ray_d, "RN Dim_X -> RN", "sum")
-            mid_z_sparse = rearrange(mid_z_sparse, "RN -> 1 RN")
-            near = mid_z_sparse - self.sample_radius
-            far = mid_z_sparse + self.sample_radius
-        else:
-            near = near_z
-            far = far_z
+        # if near_z is None or far_z is None:
+        #     mid_z_sparse = -reduce(ray_o * ray_d, "RN Dim_X -> RN", "sum")
+        #     mid_z_sparse = rearrange(mid_z_sparse, "RN -> 1 RN")
+        #     near = mid_z_sparse - self.sample_radius
+        #     far = mid_z_sparse + self.sample_radius
+        # else:
+        #     near = near_z
+        #     far = far_z
 
         # Sample points within the sample_radius of mid_z_val
-        inner_linspace = torch.linspace(0, 1, self.point_num // 2).type_as(ray_o)
-        inner_linspace = rearrange(inner_linspace, "SN -> SN 1")
-        z_val_inner = inner_linspace * (prior_far - prior_near) + prior_near
-        # z_val_inner = (inner_linspace * 2 - 1) * self.sample_radius + mid_z_val
+        # linspace = torch.linspace(0, 1, self.point_num).type_as(ray_o)
+        # linspace = rearrange(linspace, "SN -> SN 1")
+        # z_val_inner = (
+        #     linspace[self.point_num // 4 : 3 * self.point_num // 4]
+        #     * (prior_far - prior_near)
+        #     + prior_near
+        # )
 
         # Sample points outside the sample_radius but within near and far
-        outer_linspace_near = rearrange(
-            torch.linspace(0, 1, self.point_num // 4).type_as(ray_o), "SN -> SN 1"
-        )
-        outer_linspace_far = rearrange(
-            torch.linspace(0, 1, self.point_num // 4).type_as(ray_o), "SN -> SN 1"
-        )
+        # outer_linspace_near = rearrange(
+        #     torch.linspace(0, 1, self.point_num // 4).type_as(ray_o), "SN -> SN 1"
+        # )
+        # outer_linspace_far = rearrange(
+        #     torch.linspace(0, 1, self.point_num // 4).type_as(ray_o), "SN -> SN 1"
+        # )
 
-        outer_points_near = outer_linspace_near * (prior_near - near) + near
-        outer_points_far = outer_linspace_far * (far - prior_far) + prior_far
+        # outer_points_near = linspace[: self.point_num // 4] * (prior_near - near) + near
+        # outer_points_far = (
+        # linspace[3 * self.point_num // 4 :] * (far - prior_far) + prior_far
+        # )
 
         # Concatenate the two sets of points
-        z_val = torch.cat([outer_points_near, z_val_inner, outer_points_far], dim=0).T
+        # z_val = torch.cat([outer_points_near, z_val_inner, outer_points_far], dim=0).T
+        # sorted_z_val, indices = torch.sort(z_val)
+        # z_val = sorted_z_val
+
+        # mid_z_sparse = -reduce(ray_o * ray_d, "RN Dim_X -> RN", "sum")
+        # mid_z_sparse = rearrange(mid_z_sparse, "RN -> 1 RN")
+
+        # print(z_val_inner)
+
+        # print(mid_z_sparse)
+        # Ensure mid_z_val matches the shape of ray_o and ray_d
+        mid_z_val = mid_z_val.view(-1)
+        mid_z_val = rearrange(mid_z_val, "RN -> 1 RN")
+
+        near = mid_z_val - self.sample_radius
+        far = mid_z_val + self.sample_radius
+
+        unit_linspace = torch.from_numpy(
+            np.linspace(0, 1, self.point_num).astype("float32")
+        ).type_as(ray_o)
+
+        z_val = rearrange(unit_linspace, "SN -> SN 1") * (far - near) + near
+
+        interval = 1 / (self.point_num - 1)
 
         if jitter:
-            interval = 1 / (self.point_num - 1)
-            z_val_jitter = (
-                z_val + ((torch.rand(z_val.shape).type_as(ray_o)) - 0.5) * interval
-            )
+            z_val_jitter = z_val + (
+                (torch.rand(z_val.shape).type_as(ray_o)) - 0.5
+            ) * interval * (far - near)
             z_val = z_val_jitter
 
+        z_val = rearrange(z_val, "SN RN -> RN SN")
+
+        points_x = rearrange(ray_o, "RN DimX -> RN 1 DimX") + rearrange(
+            z_val, "RN SN -> RN SN 1"
+        ) * rearrange(ray_d, "RN DimX -> RN 1 DimX")
+        points_d = repeat(ray_d, "RN DimX -> RN SN DimX", SN=self.point_num)
+
+        # print(outer_points_near, z_val_inner, outer_points_far)
+        # print("************************")
+        # print(sorted_z_val)
+        # assert 0
+
+        # if jitter:
+        #     interval = 1 / (self.point_num - 1)
+        #     z_val_jitter = (
+        #         z_val + ((torch.rand(z_val.shape).type_as(ray_o)) - 0.5) * interval
+        #     )
+        #     z_val = z_val_jitter
+
         # Compute sampling points
-        points_x = ray_o.unsqueeze(1) + z_val.unsqueeze(2) * ray_d.unsqueeze(1)
-        points_d = ray_d.unsqueeze(1).repeat(1, self.point_num, 1)
+        # points_x = ray_o.unsqueeze(1) + z_val.unsqueeze(2) * ray_d.unsqueeze(1)
+        # points_d = ray_d.unsqueeze(1).repeat(1, self.point_num, 1)
 
         return points_x, z_val, points_d
